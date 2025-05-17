@@ -1,0 +1,50 @@
+/*
+
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+
+*/
+
+/* Typr Plugin Styles */
+
+/* Suggestions dropdown */
+.typr-suggestion-container {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.typr-suggestion-rank {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 18px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.typr-suggestion-content {
+  flex-grow: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Ghost hint styles */
+.typr-ghost-hint {
+  color: var(--text-muted);
+  pointer-events: none;
+  font-family: var(--font-text);
+}
+
+/* Selected suggestion */
+.suggestion-item.is-selected .typr-suggestion-rank {
+  background-color: var(--interactive-accent-hover);
+}
