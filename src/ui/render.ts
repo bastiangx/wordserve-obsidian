@@ -7,7 +7,7 @@ import {
   EditorSuggestTriggerInfo,
   TFile,
 } from "obsidian";
-import { TyperIPC } from "../core/client";
+import { TyperClient } from "../core/client";
 import { CONFIG } from "../core/config";
 import { Suggestion } from "../models/types";
 import {
@@ -29,9 +29,9 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   private cachedSuggestions: Record<string, Suggestion[]> = {};
   private selected: boolean = false;
   private debounceTimeout: NodeJS.Timeout | null = null;
-  private ipc: TyperIPC;
+  private ipc: TyperClient;
 
-  constructor(app: App, ipc: TyperIPC) {
+  constructor(app: App, ipc: TyperClient) {
     super(app);
     this.ipc = ipc;
     document.addEventListener("keydown", this.handleDigitSelect.bind(this));
