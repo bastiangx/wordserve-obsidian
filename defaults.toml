@@ -1,0 +1,39 @@
+# Only used on build script for `config.ts` constants
+# These are based on my own preferences and may not suit everyone.
+
+[plugin]
+# Min number of chars before showing suggestions
+minWordLength = 3
+# Max number of suggestions to show
+maxSuggestions = 6
+# Toggle Fuzzy matching for suggestion queries
+fuzzyMatching = true
+# Time (ms) between keystrokes and suggestion fetch
+debounceTime = 10
+# Toggle fast selection via digit keys
+numberSelection = true
+
+[internals]
+# Max allowed chars for typing before suggestions hide
+maxChars = 24
+
+[limits]
+minWordLength = { min = 1, max = 10 }
+maxSuggestions = { min = 1, max = 64 }
+debounceTime   = { min = 1, max = 2000 }
+
+[style]
+# Padding for suggestion container (top/bottom, left/right)
+padding = "6px 12px"
+# Size (width/height/line-height) of the rank element
+rank_size = 18
+# Border radius of the rank element
+rank_border_radius = "12%"
+# Margin to the right of the rank element
+rank_margin_right = 8
+# Background opacity of the rank element (in percent)
+rank_bg_opacity = 12
+# Font size of the rank element
+rank_font_size = 11
+# Background opacity of the selected rank element (in percent)
+selected_rank_bg_opacity = 55
