@@ -5,7 +5,9 @@
 *.iml
 .idea
 
-# npm
+.DS_Store
+
+# bun
 node_modules
 package-lock.json
 
@@ -24,5 +26,5 @@ data.json
 *.lock
 *.bin
 
-# Exclude macOS Finder (System Explorer) View States
-.DS_Store
+# personal
+todo.md
