@@ -2,7 +2,7 @@ import { Plugin } from "obsidian";
 import * as child_process from "child_process";
 import * as path from "path";
 import * as fs from "fs";
-import { BackendResponse, CompletionResponse, StatusResponse, Suggestion } from "../models/types";
+import { BackendResponse, CompletionResponse } from "../types";
 
 export class TyperClient {
   private process: child_process.ChildProcess | null = null;

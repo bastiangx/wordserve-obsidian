@@ -9,7 +9,7 @@ import {
 } from "obsidian";
 import { TyperClient } from "../core/client";
 import { CONFIG } from "../core/config";
-import { Suggestion } from "../models/types";
+import { Suggestion } from "../types";
 import {
   capitalizeWord,
   getCapitalizedIndexes,

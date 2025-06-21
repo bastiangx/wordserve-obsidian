@@ -2,7 +2,7 @@ import { Plugin } from "obsidian";
 import { TyperClient } from "./src/core/client";
 import {  TyperSuggest } from "./src/ui/render";
 import { DEFAULT_SETTINGS } from "./src/core/config";
-import { TyperPluginSettings } from "./src/models/types";
+import { TyperPluginSettings } from "./src/types";
 import { TyperSettingTab } from "src/settings/tab";
 
 export default class TyperPlugin extends Plugin {
