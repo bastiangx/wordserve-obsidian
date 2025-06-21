@@ -1,13 +1,13 @@
 import { Plugin } from "obsidian";
-import { TyperIPC } from "./src/core/client";
+import { TyperClient } from "./src/core/client";
 import {  TyperSuggest } from "./src/ui/render";
 import { DEFAULT_SETTINGS } from "./src/core/config";
 import { TyperPluginSettings } from "./src/models/types";
-import { TyperSettingTab } from "src/settings/settings-tab";
+import { TyperSettingTab } from "src/settings/tab";
 
 export default class TyperPlugin extends Plugin {
   settings: TyperPluginSettings;
-  ipc: TyperIPC;
+  ipc: TyperClient;
   suggestor: TyperSuggest;
   statusBarEl: HTMLElement;
 
@@ -22,7 +22,7 @@ export default class TyperPlugin extends Plugin {
       this.suggestor.debounceDelay = this.settings.debounceTime;
     };
 
-    this.ipc = new TyperIPC(this);
+    this.ipc = new TyperClient(this);
     this.suggestor = new TyperSuggest(this.app, this.ipc);
 
     updateSuggestorSettings();
