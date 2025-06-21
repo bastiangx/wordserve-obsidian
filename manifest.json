@@ -1,11 +1,11 @@
 {
-	"id": "typer",
-	"name": "Typer",
-	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
-	"description": "Native autocomplete & suggestions like intellisense",
-	"author": "bastiangx",
-	"authorUrl": "https://github.com/bastiangx",
-	"fundingUrl": "https://kofi.com/bastiangx",
-	"isDesktopOnly": true
+  "id": "typer-obsidian",
+  "name": "Typer",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Native autocomplete & suggestions | for devs & authors",
+  "author": "bastiangx",
+  "authorUrl": "https://github.com/bastiangx",
+  "fundingUrl": "https://ko-fi.com/bastiangx",
+  "isDesktopOnly": true
 }
