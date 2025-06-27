@@ -23,7 +23,6 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   public limit: number = CONFIG.plugin.maxSuggestions;
   public debounceDelay: number = CONFIG.plugin.debounceTime;
   public numberSelectionEnabled: boolean = CONFIG.plugin.numberSelection;
-  public fuzzyMatching: boolean = CONFIG.plugin.fuzzyMatching;
   public showRankingOverride: boolean = false;
 
   private lastWord = "";
@@ -218,12 +217,14 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
         try {
           const response = await this.client.getCompletions(
             lowerCaseQuery,
-            this.fuzzyMatching,
             this.limit
           );
 
+          // Use the compatibility suggestions field
+          const rawSuggestions = response.suggestions || [];
+          
           // filter current word
-          const suggestions = response.suggestions
+          const suggestions = rawSuggestions
             .filter(
               (s: Suggestion) =>
                 s.word.toLowerCase() !== lowerCaseQuery.toLowerCase()
@@ -234,13 +235,13 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
             }));
 
           this.lastSuggestions = suggestions;
-          this.cachedSuggestions[lowerCaseQuery] = response.suggestions;
+          this.cachedSuggestions[lowerCaseQuery] = rawSuggestions;
 
           resolve(suggestions);
         } catch (error) {
           if (
             error === "Duplicate request" ||
-            error === "Timeout waiting for completion response"
+            error === "Request timeout"
           ) {
             resolve(this.lastSuggestions);
           } else {

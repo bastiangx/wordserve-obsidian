@@ -2,32 +2,32 @@ import { Plugin } from "obsidian";
 import * as child_process from "child_process";
 import * as path from "path";
 import * as fs from "fs";
-import { BackendResponse, CompletionResponse } from "../types";
+import { encode, decode } from "@msgpack/msgpack";
+import {
+  CompletionRequest,
+  CompletionResponse,
+  ConfigUpdateRequest,
+  ConfigResponse,
+  CompletionError,
+} from "../types";
 
 export class TyperClient {
   private process: child_process.ChildProcess | null = null;
   private plugin: Plugin;
   private isReady: boolean = false;
-  private pendingCallbacks: Map<string, (data: BackendResponse) => void> =
-    new Map();
-
-  // caching last req
-  private lastRequests: Set<string> = new Set();
+  private responseBuffer: Buffer = Buffer.alloc(0);
 
   constructor(plugin: Plugin) {
     this.plugin = plugin;
   }
 
   async initialize(): Promise<boolean> {
-    console.log("client: initialize called");
     if (this.isReady) {
-      console.log("TyperClient: already initialized");
       return true;
     }
 
     try {
       await this.startProcess();
-      console.log("TyperClient: initialization complete, isReady =", this.isReady);
       return this.isReady;
     } catch (error) {
       console.error("Failed to initialize TyperClient:", error);
@@ -38,8 +38,7 @@ export class TyperClient {
   private async startProcess(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const binaryName = "typer";
-
+        const binaryName = process.platform === "win32" ? "typer.exe" : "typer";
         const adapter = this.plugin.app.vault.adapter;
         const vaultPath =
           "getBasePath" in adapter
@@ -52,193 +51,258 @@ export class TyperClient {
           "plugins",
           "typer-obsidian"
         );
-        const binaryDir = path.join(pluginDir, "binaries");
-        
-        // Check for the binary in several locations
+        const binaryDir = path.join(pluginDir, "data");
+
         const possibleBinaryPaths = [
-          path.join(pluginDir, binaryName),  // Main plugin directory
-          path.join(pluginDir, "typer", binaryName),  // Subdirectory
-          path.join(pluginDir, "binaries", binaryName),  // Binaries directory
-          path.join(__dirname, "..", "..", binaryName),  // Root directory relative to this file
+          path.join(pluginDir, binaryName),
+          path.join(pluginDir, "typer-lib", "typer"),
+          path.join(pluginDir, "typer"),
+          path.join(pluginDir, "data", binaryName),
+          path.join(__dirname, "..", "..", binaryName),
         ];
 
         let binaryPath = "";
         for (const testPath of possibleBinaryPaths) {
           if (fs.existsSync(testPath)) {
             binaryPath = testPath;
-            console.log("TyperClient: Found binary at", binaryPath);
             break;
           }
         }
 
         if (!binaryPath) {
-          console.error("TyperClient: Binary not found in any of:", possibleBinaryPaths);
-          reject(new Error("Typer binary not found"));
+          reject(new Error(`Typer binary not found. Searched: ${possibleBinaryPaths.join(", ")}`));
           return;
         }
 
-        const args = [`--binaries=${binaryDir}`];
-        console.log("TyperClient: Spawning process with args:", args);
-        
-        this.process = child_process.spawn(
-          binaryPath,
-          args,
-          {
-            stdio: ["pipe", "pipe", "pipe"],
-          }
-        );
+        const args = [`--data=${binaryDir}`];
+
+        this.process = child_process.spawn(binaryPath, args, {
+          stdio: ["pipe", "pipe", "pipe"],
+        });
 
         this.process.on("exit", (code) => {
-          console.log(`typer-lib process exited with code ${code}`);
-          this.isReady = false;
-          this.process = null;
+          console.log(`typer process exited with code ${code}`);
+          this.cleanup();
         });
 
-        this.process.stdout?.on("data", (data) => {
-          const responseStr = data.toString().trim();
-          console.log(`Received from Go: ${responseStr}`);
+        this.process.on("error", (error) => {
+          console.error("Process error:", error);
+          reject(error);
+        });
 
+        this.process.stdout?.on("data", (data: Buffer) => {
+          this.handleBinaryData(data);
+        });
+
+        this.process.stderr?.on("data", (data: Buffer) => {
+          console.log(`Typer log: ${data.toString()}`);
+        });
+
+        // Test connection with simple request
+        setTimeout(async () => {
           try {
-            let response: BackendResponse;
-            try {
-              response = JSON.parse(responseStr) as BackendResponse;
-            } catch {
-              return;
-            }
-
-            if ("status" in response && response.status === "ready") {
-              this.isReady = true;
-              console.log("typer-lib backend is ready");
-              resolve();
-              return;
-            }
-
-            // Process the response based on requestId if available
-            const requestId =
-              "requestId" in response && typeof response.requestId === "string"
-                ? response.requestId
-                : undefined;
-                
-            if (requestId && this.pendingCallbacks.has(requestId)) {
-              console.log("TyperClient: Processing response for requestId", requestId, response);
-              const callback = this.pendingCallbacks.get(requestId);
-              this.pendingCallbacks.delete(requestId);
-              if (callback) callback(response);
-            } else if ("suggestions" in response && this.pendingCallbacks.size > 0) {
-              // no requestID
-              console.log("TyperClient: Processing suggestions response without requestId", response);
-              const oldestRequestId = Array.from(this.pendingCallbacks.keys())[0];
-              if (oldestRequestId) {
-                const callback = this.pendingCallbacks.get(oldestRequestId);
-                this.pendingCallbacks.delete(oldestRequestId);
-                if (callback) callback(response);
-              }
-            } else {
-              console.log("TyperClient: Response has no matching callback", response);
-            }
+            await this.testConnection();
+            this.isReady = true;
+            resolve();
           } catch (error) {
-            console.error("Error processing response:", error, responseStr);
+            reject(new Error("Failed to establish connection with typer process"));
           }
-        });
-
-        // Listen for errors
-        this.process.stderr?.on("data", (data) => {
-          console.log(`Log from Go: ${data.toString()}`);
-        });
-
-        // If process doesn't become ready in 5 seconds, reject
-        setTimeout(() => {
-          if (!this.isReady) {
-            reject("Timeout waiting for typer-lib to become ready");
-          }
-        }, 5000);
+        }, 200);
       } catch (error) {
         reject(error);
       }
+    });
+  }
+
+  private handleBinaryData(data: Buffer) {
+    try {
+      // Append new data to buffer
+      this.responseBuffer = Buffer.concat([this.responseBuffer, data]);
+
+      // Try to decode messages one by one
+      while (this.responseBuffer.length > 0) {
+        try {
+          const decoded = decode(this.responseBuffer);
+          // If successful, clear the buffer as we consumed all data
+          this.responseBuffer = Buffer.alloc(0);
+          this.processResponse(decoded);
+          break;
+        } catch (error) {
+          // Not enough data yet, wait for more
+          break;
+        }
+      }
+    } catch (error) {
+      console.error("Error processing binary data:", error);
+    }
+  }
+
+  private processResponse(response: any) {
+    console.log("Received response:", response);
+
+    // Handle completion response
+    if (response.s && Array.isArray(response.s)) {
+      const completionResponse: CompletionResponse = {
+        s: response.s,
+        c: response.c || response.s.length,
+        t: response.t || 0,
+        suggestions: response.s.map((s: any, index: number) => ({
+          word: s.w,
+          rank: s.r || index + 1,
+        })),
+      };
+      this.resolvePromise(completionResponse);
+      return;
+    }
+
+    // Handle error response
+    if (response.e) {
+      const error = new Error(`${response.e} (code: ${response.c || 0})`);
+      this.rejectPromise(error);
+      return;
+    }
+
+    // Handle config response
+    if (response.status) {
+      this.resolvePromise(response);
+      return;
+    }
+
+    console.warn("Unknown response format:", response);
+  }
+
+  private currentPromise: {
+    resolve: (value: any) => void;
+    reject: (error: Error) => void;
+  } | null = null;
+
+  private resolvePromise(value: any) {
+    if (this.currentPromise) {
+      this.currentPromise.resolve(value);
+      this.currentPromise = null;
+    }
+  }
+
+  private rejectPromise(error: Error) {
+    if (this.currentPromise) {
+      this.currentPromise.reject(error);
+      this.currentPromise = null;
+    }
+  }
+
+  private async testConnection(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.currentPromise) {
+        reject(new Error("Request already in progress"));
+        return;
+      }
+
+      this.currentPromise = { resolve: () => resolve(), reject };
+
+      const testRequest: CompletionRequest = { p: "test", l: 1 };
+
+      try {
+        this.sendMsgPackData(testRequest);
+      } catch (error) {
+        this.currentPromise = null;
+        reject(error);
+      }
+
+      setTimeout(() => {
+        if (this.currentPromise) {
+          this.currentPromise = null;
+          reject(new Error("Connection test timeout"));
+        }
+      }, 3000);
     });
   }
 
   async getCompletions(
     prefix: string,
-    fuzzy: boolean = true,
     limit: number = 4
   ): Promise<CompletionResponse> {
-    console.log("TyperClient: getCompletions called", prefix, fuzzy, limit);
-    
-    // Check if duplicate
-    const requestKey = `${prefix}-${fuzzy}-${limit}`;
-    if (this.lastRequests.has(requestKey)) {
-      console.log("TyperClient: Duplicate request rejected", requestKey);
-      return Promise.reject("Duplicate request");
-    }
-    this.lastRequests.add(requestKey);
-
-    setTimeout(() => {
-      this.lastRequests.delete(requestKey);
-    }, 2000);
-
     if (!this.process || !this.isReady) {
-      console.log("TyperClient: Process not ready, attempting to start");
-      try {
-        await this.startProcess();
-      } catch (error) {
-        console.error("Failed to start process:", error);
-        return Promise.reject("Backend not available");
-      }
+      await this.initialize();
+    }
+
+    if (!prefix || prefix.trim().length === 0) {
+      throw new Error("Empty prefix");
     }
 
     return new Promise((resolve, reject) => {
+      if (this.currentPromise) {
+        reject(new Error("Request already in progress"));
+        return;
+      }
+
+      this.currentPromise = { resolve, reject };
+
+      const request: CompletionRequest = {
+        p: prefix.trim(),
+        l: limit,
+      };
+
       try {
-        const requestId = Date.now().toString();
-
-        this.pendingCallbacks.set(requestId, (response) => {
-          if ("suggestions" in response) {
-            resolve(response as CompletionResponse);
-          } else {
-            reject(
-              "Error: Received unexpected response type for completion request"
-            );
-          }
-        });
-
-        const request = {
-          command: "complete",
-          requestId,
-          prefix,
-          fuzzy,
-          limit,
-        };
-        this.sendData(JSON.stringify(request));
-
-        setTimeout(() => {
-          if (this.pendingCallbacks.has(requestId)) {
-            this.pendingCallbacks.delete(requestId);
-            reject("Timeout waiting for completion response");
-          }
-        }, 2000);
+        this.sendMsgPackData(request);
       } catch (error) {
+        this.currentPromise = null;
         reject(error);
       }
+
+      setTimeout(() => {
+        if (this.currentPromise) {
+          this.currentPromise = null;
+          reject(new Error("Request timeout"));
+        }
+      }, 3000);
     });
   }
 
-  private sendData(data: string) {
-    if (this.process && this.process.stdin) {
-      this.process.stdin.write(data + "\n");
-      console.log(`Sent to Go: ${data}`);
-    } else {
-      console.error("Process not started or stdin not available");
-      throw new Error("Process not started or stdin not available");
+  async updateConfig(config: ConfigUpdateRequest): Promise<ConfigResponse> {
+    if (!this.process || !this.isReady) {
+      await this.initialize();
     }
+
+    return new Promise((resolve, reject) => {
+      if (this.currentPromise) {
+        reject(new Error("Request already in progress"));
+        return;
+      }
+
+      this.currentPromise = { resolve, reject };
+
+      try {
+        this.sendMsgPackData(config);
+      } catch (error) {
+        this.currentPromise = null;
+        reject(error);
+      }
+
+      setTimeout(() => {
+        if (this.currentPromise) {
+          this.currentPromise = null;
+          reject(new Error("Config update timeout"));
+        }
+      }, 3000);
+    });
+  }
+
+  private sendMsgPackData(data: any) {
+    if (!this.process || !this.process.stdin) {
+      throw new Error("Process not available");
+    }
+
+    const encoded = encode(data);
+    this.process.stdin.write(encoded);
   }
 
   cleanup() {
     if (this.process) {
       this.process.kill();
       this.process = null;
-      this.isReady = false;
-      this.pendingCallbacks.clear();
-      this.lastRequests.clear();
     }
+    this.isReady = false;
+    this.responseBuffer = Buffer.alloc(0);
+    this.currentPromise = null;
   }
 }

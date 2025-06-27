@@ -1,7 +1,6 @@
 export interface TyperPluginSettings {
   minWordLength: number;
   maxSuggestions: number;
-  fuzzyMatching: boolean;
   debounceTime: number;
   numberSelection: boolean;
   showRankingOverride: boolean;
@@ -11,21 +10,44 @@ export interface TyperPluginSettings {
 export interface Suggestion {
   word: string;
   rank: number;
-  freq?: number;
+}
+
+// MessagePack types
+export interface CompletionRequest {
+  p: string; // prefix
+  l?: number; // limit
+}
+
+export interface CompletionSuggestion {
+  w: string; // word
+  r: number; // rank
 }
 
 export interface CompletionResponse {
-  suggestions: Suggestion[];
-  count: number;
-  prefix: string;
-  time_ms: number;
-  was_corrected?: boolean;
-  corrected_prefix?: string;
+  s: CompletionSuggestion[]; // suggestions
+  c: number; // count
+  t: number; // time_taken (microseconds)
+  suggestions?: Suggestion[];
 }
 
-export interface StatusResponse {
+export interface CompletionError {
+  e: string; // message
+  c: number; // code
+}
+
+export interface ConfigUpdateRequest {
+  max_limit?: number;
+  min_prefix?: number;
+  max_prefix?: number;
+  enable_filter?: boolean;
+}
+
+export interface ConfigResponse {
   status: string;
-  requestId?: string;
+  error?: string;
 }
 
-export type BackendResponse = CompletionResponse | StatusResponse;
+export type BackendResponse =
+  | CompletionResponse
+  | CompletionError
+  | ConfigResponse;
