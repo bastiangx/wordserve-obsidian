@@ -269,7 +269,33 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     }
 
     const contentEl = container.createSpan({ cls: "typer-suggestion-content" });
-    contentEl.setText(suggestion.word);
+    
+    // Highlight prefix with muted colors
+    if (this.context && this.context.query) {
+      const query = this.context.query;
+      const word = suggestion.word;
+      const queryLower = query.toLowerCase();
+      const wordLower = word.toLowerCase();
+      
+      if (wordLower.startsWith(queryLower)) {
+        // Split the word into prefix (matching query) and suffix (rest)
+        const prefixLength = query.length;
+        const prefix = word.substring(0, prefixLength);
+        const suffix = word.substring(prefixLength);
+        
+        // Create spans for prefix and suffix with different styling
+        const prefixSpan = contentEl.createSpan({ cls: "suggestion-prefix" });
+        prefixSpan.setText(prefix);
+        
+        const suffixSpan = contentEl.createSpan({ cls: "suggestion-suffix" });
+        suffixSpan.setText(suffix);
+      } else {
+        contentEl.setText(suggestion.word);
+      }
+    } else {
+      // Fallback: if no context, just show the word normally
+      contentEl.setText(suggestion.word);
+    }
   }
 
   selectSuggestion(

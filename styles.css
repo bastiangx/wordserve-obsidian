@@ -37,3 +37,12 @@
 .suggestion-item.is-selected .typer-suggestion-rank {
   background-color: color-mix(in srgb, var(--interactive-accent) 55%, transparent);
 }
+
+/* Prefix highlighting */
+.suggestion-prefix {
+  color: var(--text-faint);
+}
+
+.suggestion-suffix {
+  color: var(--text-normal);
+}
