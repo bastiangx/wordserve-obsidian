@@ -17,7 +17,6 @@ export default class TyperPlugin extends Plugin {
     const updateSuggestorSettings = () => {
       this.suggestor.minChars = this.settings.minWordLength;
       this.suggestor.limit = this.settings.maxSuggestions;
-      this.suggestor.fuzzyMatching = this.settings.fuzzyMatching;
       this.suggestor.numberSelectionEnabled = this.settings.numberSelection;
       this.suggestor.debounceDelay = this.settings.debounceTime;
       this.suggestor.showRankingOverride = this.settings.showRankingOverride;

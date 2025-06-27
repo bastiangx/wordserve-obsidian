@@ -6,8 +6,6 @@
 minWordLength = 3
 # Max number of suggestions to show
 maxSuggestions = 6
-# Toggle Fuzzy matching for suggestion queries
-fuzzyMatching = true
 # Time (ms) between keystrokes and suggestion fetch
 debounceTime = 10
 # Toggle fast selection via digit keys

@@ -53,19 +53,6 @@ export class TyperSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Fuzzy matching")
-      .setDesc("Use fuzzy matching for suggestions")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.fuzzyMatching)
-          .onChange(async (value) => {
-            this.plugin.settings.fuzzyMatching = value;
-            this.plugin.suggestor.fuzzyMatching = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
       .setName("Digit selection")
       .setDesc("Allow faster selection via pressing digit keys")
       .addToggle((toggle) =>

@@ -17,7 +17,6 @@ import { TyperPluginSettings } from "../types";
 export interface PluginConfig {
   minWordLength: number;
   maxSuggestions: number;
-  fuzzyMatching: boolean;
   debounceTime: number;
   numberSelection: boolean;
   showRankingOverride: boolean;
@@ -80,7 +79,6 @@ export const CONFIG: ConfigType = ${JSON.stringify(config, null, 2)};
 export const DEFAULT_SETTINGS: TyperPluginSettings = {
   minWordLength: CONFIG.plugin.minWordLength,
   maxSuggestions: CONFIG.plugin.maxSuggestions,
-  fuzzyMatching: CONFIG.plugin.fuzzyMatching,
   debounceTime: CONFIG.plugin.debounceTime,
   numberSelection: CONFIG.plugin.numberSelection,
   showRankingOverride: CONFIG.plugin.showRankingOverride,
