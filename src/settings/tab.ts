@@ -79,6 +79,19 @@ export class TyperSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Rankings Override")
+      .setDesc("Always show suggestion rankings, even if digit selection is off.")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.showRankingOverride)
+          .onChange(async (value) => {
+            this.plugin.settings.showRankingOverride = value;
+            this.plugin.suggestor.showRankingOverride = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("Debounce time")
       .setDesc("Time to wait after typing before showing suggestions menu")
       .addText((text) => {
@@ -107,6 +120,24 @@ export class TyperSettingTab extends PluginSettingTab {
           text.setValue(numValue.toString());
         });
         return text;
+      });
+
+    new Setting(containerEl)
+      .setName("Navigation mode")
+      .setDesc("Keys used to choose an item in an opened menu (macos, vim, tabs)")
+      .addDropdown((dropdown) => {
+        CONFIG.keybind_modes.available.forEach((mode: string) => {
+          dropdown.addOption(mode, mode.charAt(0).toUpperCase() + mode.slice(1));
+        });
+        dropdown.setValue((this.plugin.settings.keybindMode || CONFIG.keybind_modes.default) as any);
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.keybindMode = value as any;
+          // @ts-ignore
+          import("../settings/keybinds").then(({ keybindManager }) => {
+            keybindManager.setMode(value as any);
+          });
+          await this.plugin.saveSettings();
+        });
       });
   }
 }

@@ -4,6 +4,8 @@ export interface TyperPluginSettings {
   fuzzyMatching: boolean;
   debounceTime: number;
   numberSelection: boolean;
+  showRankingOverride: boolean;
+  keybindMode?: "default" | "macos" | "tabs" | "vim";
 }
 
 export interface Suggestion {

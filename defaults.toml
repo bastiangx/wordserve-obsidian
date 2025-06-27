@@ -12,6 +12,8 @@ fuzzyMatching = true
 debounceTime = 10
 # Toggle fast selection via digit keys
 numberSelection = true
+# Always show suggestion rankings, even if digit selection is off
+showRankingOverride = false
 
 [internals]
 # Max allowed chars for typing before suggestions hide
@@ -37,3 +39,26 @@ rank_bg_opacity = 12
 rank_font_size = 11
 # Background opacity of the selected rank element (in percent)
 selected_rank_bg_opacity = 55
+
+[keybinds]
+# Default keybinds for navigation and actions
+up = ["ArrowUp"]
+down = ["ArrowDown"]
+select = ["Enter"]
+close = ["Escape"]
+numberSelect = ["1","2","3","4","5","6","7","8","9"]
+tabNext = ["Tab"]
+tabPrev = ["Shift+Tab"]
+macosUp = ["Ctrl+p"]
+macosDown = ["Ctrl+n"]
+vimUp = ["K"]
+vimDown = ["J"]
+vimAltUp = ["Ctrl+k"]
+vimAltDown = ["Ctrl+j"]
+insertSpaceAfter = true
+
+[keybind_modes]
+# Predefined navigation modes
+# 'default' uses arrows, 'macos' uses ctrl+n/p, 'tabs' uses tab/shift+tab, 'vim' uses K/J or ctrl+j/k
+available = ["default", "macos", "tabs", "vim"]
+default = "default"

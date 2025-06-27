@@ -21,16 +21,16 @@ export class TyperClient {
   async initialize(): Promise<boolean> {
     console.log("client: initialize called");
     if (this.isReady) {
-      console.log("TyperIPC: already initialized");
+      console.log("TyperClient: already initialized");
       return true;
     }
 
     try {
       await this.startProcess();
-      console.log("TyperIPC: initialization complete, isReady =", this.isReady);
+      console.log("TyperClient: initialization complete, isReady =", this.isReady);
       return this.isReady;
     } catch (error) {
-      console.error("Failed to initialize TyperIPC:", error);
+      console.error("Failed to initialize TyperClient:", error);
       return false;
     }
   }
@@ -66,19 +66,19 @@ export class TyperClient {
         for (const testPath of possibleBinaryPaths) {
           if (fs.existsSync(testPath)) {
             binaryPath = testPath;
-            console.log("TyperIPC: Found binary at", binaryPath);
+            console.log("TyperClient: Found binary at", binaryPath);
             break;
           }
         }
 
         if (!binaryPath) {
-          console.error("TyperIPC: Binary not found in any of:", possibleBinaryPaths);
+          console.error("TyperClient: Binary not found in any of:", possibleBinaryPaths);
           reject(new Error("Typer binary not found"));
           return;
         }
 
         const args = [`--binaries=${binaryDir}`];
-        console.log("TyperIPC: Spawning process with args:", args);
+        console.log("TyperClient: Spawning process with args:", args);
         
         this.process = child_process.spawn(
           binaryPath,
@@ -120,13 +120,13 @@ export class TyperClient {
                 : undefined;
                 
             if (requestId && this.pendingCallbacks.has(requestId)) {
-              console.log("TyperIPC: Processing response for requestId", requestId, response);
+              console.log("TyperClient: Processing response for requestId", requestId, response);
               const callback = this.pendingCallbacks.get(requestId);
               this.pendingCallbacks.delete(requestId);
               if (callback) callback(response);
             } else if ("suggestions" in response && this.pendingCallbacks.size > 0) {
               // no requestID
-              console.log("TyperIPC: Processing suggestions response without requestId", response);
+              console.log("TyperClient: Processing suggestions response without requestId", response);
               const oldestRequestId = Array.from(this.pendingCallbacks.keys())[0];
               if (oldestRequestId) {
                 const callback = this.pendingCallbacks.get(oldestRequestId);
@@ -134,7 +134,7 @@ export class TyperClient {
                 if (callback) callback(response);
               }
             } else {
-              console.log("TyperIPC: Response has no matching callback", response);
+              console.log("TyperClient: Response has no matching callback", response);
             }
           } catch (error) {
             console.error("Error processing response:", error, responseStr);
@@ -163,12 +163,12 @@ export class TyperClient {
     fuzzy: boolean = true,
     limit: number = 4
   ): Promise<CompletionResponse> {
-    console.log("TyperIPC: getCompletions called", prefix, fuzzy, limit);
+    console.log("TyperClient: getCompletions called", prefix, fuzzy, limit);
     
     // Check if duplicate
     const requestKey = `${prefix}-${fuzzy}-${limit}`;
     if (this.lastRequests.has(requestKey)) {
-      console.log("TyperIPC: Duplicate request rejected", requestKey);
+      console.log("TyperClient: Duplicate request rejected", requestKey);
       return Promise.reject("Duplicate request");
     }
     this.lastRequests.add(requestKey);
@@ -178,7 +178,7 @@ export class TyperClient {
     }, 2000);
 
     if (!this.process || !this.isReady) {
-      console.log("TyperIPC: Process not ready, attempting to start");
+      console.log("TyperClient: Process not ready, attempting to start");
       try {
         await this.startProcess();
       } catch (error) {

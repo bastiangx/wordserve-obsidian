@@ -7,7 +7,7 @@ import { TyperSettingTab } from "src/settings/tab";
 
 export default class TyperPlugin extends Plugin {
   settings: TyperPluginSettings;
-  ipc: TyperClient;
+  client: TyperClient;
   suggestor: TyperSuggest;
   statusBarEl: HTMLElement;
 
@@ -20,21 +20,30 @@ export default class TyperPlugin extends Plugin {
       this.suggestor.fuzzyMatching = this.settings.fuzzyMatching;
       this.suggestor.numberSelectionEnabled = this.settings.numberSelection;
       this.suggestor.debounceDelay = this.settings.debounceTime;
+      this.suggestor.showRankingOverride = this.settings.showRankingOverride;
+      // only sets if user overrides binds
+      if (this.settings.keybindMode) {
+        import("./src/settings/keybinds").then(({ keybindManager }) => {
+          keybindManager.setMode(this.settings.keybindMode!);
+        });
+      }
     };
 
-    this.ipc = new TyperClient(this);
-    this.suggestor = new TyperSuggest(this.app, this.ipc);
+    this.client = new TyperClient(this);
+    this.suggestor = new TyperSuggest(this.app, this.client);
 
     updateSuggestorSettings();
     this.registerEditorSuggest(this.suggestor);
 
-    // statusBar shows current status
+    // Shows simply current status 
+    // TODO: rework this to something more useful
+    // TODO: default it should be turned off, or used for dbg mode
     this.statusBarEl = this.addStatusBarItem();
     this.statusBarEl.setText("Typer: Ready");
 
     this.addSettingTab(new TyperSettingTab(this.app, this));
 
-    this.ipc
+    this.client
       .initialize()
       .then((isReady) => {
         if (isReady) {
@@ -49,7 +58,7 @@ export default class TyperPlugin extends Plugin {
   }
 
   onunload() {
-    this.ipc.cleanup();
+    this.client.cleanup();
   }
 
   async loadSettings() {

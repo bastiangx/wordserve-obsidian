@@ -15,6 +15,7 @@ import {
   getCapitalizedIndexes,
   hasOnlyNumbersOrSpecialChars,
 } from "../utils/string";
+import { keybindManager } from "../settings/keybinds";
 
 export class TyperSuggest extends EditorSuggest<Suggestion> {
   public minChars: number = CONFIG.plugin.minWordLength;
@@ -23,33 +24,80 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   public debounceDelay: number = CONFIG.plugin.debounceTime;
   public numberSelectionEnabled: boolean = CONFIG.plugin.numberSelection;
   public fuzzyMatching: boolean = CONFIG.plugin.fuzzyMatching;
+  public showRankingOverride: boolean = false;
 
   private lastWord = "";
   private lastSuggestions: Suggestion[] = [];
   private cachedSuggestions: Record<string, Suggestion[]> = {};
   private selected: boolean = false;
   private debounceTimeout: NodeJS.Timeout | null = null;
-  private ipc: TyperClient;
+  private client: TyperClient;
 
-  constructor(app: App, ipc: TyperClient) {
+  constructor(app: App, client: TyperClient) {
     super(app);
-    this.ipc = ipc;
-    document.addEventListener("keydown", this.handleDigitSelect.bind(this));
+    this.client = client;
+    document.addEventListener("keydown", this.handleKeybinds.bind(this));
   }
 
-  private handleDigitSelect(evt: KeyboardEvent): void {
-    if (!this.numberSelectionEnabled || !this.context) return;
-    const key = evt.key;
-    if (!/^[1-9]$/.test(key)) return;
-    const idx = parseInt(key, 10) - 1;
-    if (idx < 0 || idx >= this.lastSuggestions.length) return;
-    const { editor, start, end } = this.context;
-    const currentWord = editor.getRange(start, end);
-    if (/\d/.test(currentWord)) return;
-    evt.preventDefault();
-    evt.stopPropagation();
-    this.selectSuggestion(this.lastSuggestions[idx], evt);
-    this.close();
+  private handleKeybinds(evt: KeyboardEvent): void {
+    if (!this.context) return;
+    // Digit selection
+    if (
+      this.numberSelectionEnabled &&
+      keybindManager.getKeysForAction("numberSelect").includes(evt.key)
+    ) {
+      const idx = parseInt(evt.key, 10) - 1;
+      if (idx < 0 || idx >= this.lastSuggestions.length) return;
+      const { editor, start, end } = this.context;
+      const currentWord = editor.getRange(start, end);
+      if (/\d/.test(currentWord)) return;
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.selectSuggestion(this.lastSuggestions[idx], evt);
+      this.close();
+      return;
+    }
+    // Navigation (up/down/tab etc)
+    const navActions = [
+      { action: "up", move: -1 },
+      { action: "down", move: 1 },
+      { action: "tabNext", move: 1 },
+      { action: "tabPrev", move: -1 },
+      { action: "macosUp", move: -1 },
+      { action: "macosDown", move: 1 },
+      { action: "vimUp", move: -1 },
+      { action: "vimDown", move: 1 },
+      { action: "vimAltUp", move: -1 },
+      { action: "vimAltDown", move: 1 },
+    ];
+    for (const nav of navActions) {
+      if (keybindManager.getKeysForAction(nav.action as import("../settings/keybinds").KeybindAction).includes(evt.key)) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        // TODO: Implement navigation logic (move selection up/down)
+        // This requires tracking the selected index in the suggestion list
+        // For now, just log
+        console.log(`Navigate ${nav.action} (${nav.move})`);
+        return;
+      }
+    }
+    // Select suggestion
+    if (keybindManager.getKeysForAction("select").includes(evt.key)) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      // TODO: Implement select logic (insert selected suggestion)
+      // For now, just log
+      console.log("Select suggestion");
+      // this.selectSuggestion(...)
+      return;
+    }
+    // Close menu
+    if (keybindManager.getKeysForAction("close").includes(evt.key)) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.close();
+      return;
+    }
   }
 
   onTrigger(
@@ -168,7 +216,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
         }
 
         try {
-          const response = await this.ipc.getCompletions(
+          const response = await this.client.getCompletions(
             lowerCaseQuery,
             this.fuzzyMatching,
             this.limit
@@ -213,8 +261,10 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
 
     const displayRank = this.lastSuggestions.indexOf(suggestion) + 1;
     const rankEl = container.createSpan({ cls: "typer-suggestion-rank" });
-    if (displayRank > 0) {
+    if (displayRank > 0 && (this.numberSelectionEnabled || this.showRankingOverride)) {
       rankEl.setText(`${displayRank}`);
+    } else {
+      rankEl.style.display = "none";
     }
 
     const contentEl = container.createSpan({ cls: "typer-suggestion-content" });
@@ -247,11 +297,12 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
       }
     }
 
-    // replace and add a space
-    editor.replaceRange(suggestion.word + " ", start, end);
+    // replace and add a space if enabled
+    const insertSpace = keybindManager.isInsertSpaceAfter();
+    editor.replaceRange(suggestion.word + (insertSpace ? " " : ""), start, end);
     editor.setCursor({
       line: end.line,
-      ch: start.ch + suggestion.word.length + 1,
+      ch: start.ch + suggestion.word.length + (insertSpace ? 1 : 0),
     });
 
     this.selected = true;
