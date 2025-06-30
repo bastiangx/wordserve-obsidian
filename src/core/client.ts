@@ -6,7 +6,6 @@ import { encode, decode } from "@msgpack/msgpack";
 import {
   CompletionRequest,
   CompletionResponse,
-  ConfigUpdateRequest,
   ConfigResponse,
   DictionaryRequest,
   DictionaryResponse,
@@ -274,35 +273,6 @@ export class TyperClient {
     });
   }
 
-  async updateConfig(config: Partial<ConfigUpdateRequest>): Promise<ConfigResponse> {
-    if (!this.process || !this.isReady) {
-      await this.initialize();
-    }
-
-    return new Promise((resolve, reject) => {
-      if (this.currentPromise) {
-        reject(new Error("Request already in progress"));
-        return;
-      }
-
-      this.currentPromise = { resolve, reject };
-
-      try {
-        this.sendMsgPackData(config);
-      } catch (error) {
-        this.currentPromise = null;
-        reject(error);
-      }
-
-      setTimeout(() => {
-        if (this.currentPromise) {
-          this.currentPromise = null;
-          reject(new Error("Config update timeout"));
-        }
-      }, 3000);
-    });
-  }
-
   async setDictionarySize(chunkCount: number): Promise<ConfigResponse> {
     if (!this.process || !this.isReady) {
       await this.initialize();
@@ -384,6 +354,70 @@ export class TyperClient {
         }
       }, 3000);
     });
+  }
+
+  async updateConfigFile(updates: { maxLimit?: number; minPrefix?: number; maxPrefix?: number; enableFilter?: boolean }): Promise<boolean> {
+    try {
+      const adapter = this.plugin.app.vault.adapter;
+      const vaultPath = "getBasePath" in adapter 
+        ? (adapter as { getBasePath(): string }).getBasePath() 
+        : "";
+
+      const configPath = path.join(
+        vaultPath,
+        ".obsidian",
+        "plugins", 
+        "typer-obsidian",
+        "typer-config.toml"
+      );
+
+      if (!fs.existsSync(configPath)) {
+        logger.error("TOML config file not found:", configPath);
+        return false;
+      }
+
+      let configContent = fs.readFileSync(configPath, 'utf-8');
+      
+      // Update the TOML content
+      if (updates.maxLimit !== undefined) {
+        configContent = configContent.replace(
+          /max_limit\s*=\s*\d+/,
+          `max_limit = ${updates.maxLimit}`
+        );
+        logger.config("Updated max_limit in TOML", { value: updates.maxLimit });
+      }
+      
+      if (updates.minPrefix !== undefined) {
+        configContent = configContent.replace(
+          /min_prefix\s*=\s*\d+/,
+          `min_prefix = ${updates.minPrefix}`
+        );
+        logger.config("Updated min_prefix in TOML", { value: updates.minPrefix });
+      }
+      
+      if (updates.maxPrefix !== undefined) {
+        configContent = configContent.replace(
+          /max_prefix\s*=\s*\d+/,
+          `max_prefix = ${updates.maxPrefix}`
+        );
+        logger.config("Updated max_prefix in TOML", { value: updates.maxPrefix });
+      }
+      
+      if (updates.enableFilter !== undefined) {
+        configContent = configContent.replace(
+          /enable_filter\s*=\s*(true|false)/,
+          `enable_filter = ${updates.enableFilter}`
+        );
+        logger.config("Updated enable_filter in TOML", { value: updates.enableFilter });
+      }
+
+      fs.writeFileSync(configPath, configContent, 'utf-8');
+      logger.config("TOML config file updated successfully", { path: configPath });
+      return true;
+    } catch (error) {
+      logger.error("Failed to update TOML config file:", error);
+      return false;
+    }
   }
 
   private sendMsgPackData(data: any) {

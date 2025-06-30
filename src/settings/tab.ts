@@ -41,9 +41,21 @@ export class TyperSettingTab extends PluginSettingTab {
             this.plugin.settings.minWordLength = value;
             this.plugin.suggestor.minChars = value;
             this.updatePreview();
+            
+            // Update TOML config file for core
+            const success = await this.plugin.client.updateConfigFile({
+              minPrefix: value
+            });
+            
+            if (success) {
+              // Restart the backend to pick up new config
+              await this.plugin.client.restart();
+            }
+            
             logger.config("Min word length changed", {
               from: oldValue,
               to: value,
+              tomlUpdated: success
             });
             await this.plugin.saveSettings();
           })
@@ -65,9 +77,21 @@ export class TyperSettingTab extends PluginSettingTab {
             const oldValue = this.plugin.settings.maxSuggestions;
             this.plugin.settings.maxSuggestions = value;
             this.plugin.suggestor.limit = value;
+            
+            // Update TOML config file for core
+            const success = await this.plugin.client.updateConfigFile({
+              maxLimit: value
+            });
+            
+            if (success) {
+              // Restart the backend to pick up new config
+              await this.plugin.client.restart();
+            }
+            
             logger.config("Max suggestions changed", {
               from: oldValue,
               to: value,
+              tomlUpdated: success
             });
             await this.plugin.saveSettings();
           })
@@ -134,32 +158,6 @@ export class TyperSettingTab extends PluginSettingTab {
           text.setValue(numValue.toString());
         });
         return text;
-      });
-
-    new Setting(containerEl)
-      .setName("Navigation mode")
-      .setDesc(
-        "Keys used to choose an item in an opened menu (macos, vim, tabs)"
-      )
-      .addDropdown((dropdown) => {
-        CONFIG.keybind_modes.available.forEach((mode: string) => {
-          dropdown.addOption(
-            mode,
-            mode.charAt(0).toUpperCase() + mode.slice(1)
-          );
-        });
-        dropdown.setValue(
-          (this.plugin.settings.keybindMode ||
-            CONFIG.keybind_modes.default) as any
-        );
-        dropdown.onChange(async (value) => {
-          this.plugin.settings.keybindMode = value as any;
-          // @ts-ignore
-          import("../settings/keybinds").then(({ keybindManager }) => {
-            keybindManager.setMode(value as any);
-          });
-          await this.plugin.saveSettings();
-        });
       });
 
     // Shortcuts & Abbreviations Section

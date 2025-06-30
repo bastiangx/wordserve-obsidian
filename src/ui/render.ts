@@ -32,6 +32,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   private lastSuggestions: Suggestion[] = [];
   private cachedSuggestions: Record<string, Suggestion[]> = {};
   private selected: boolean = false;
+  private selectedIndex: number = 0;
   private debounceTimeout: NodeJS.Timeout | null = null;
   private client: TyperClient;
   private plugin: TyperPlugin;
@@ -43,6 +44,38 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     this.plugin = plugin;
     this.abbreviationManager = new AbbreviationManager(app, plugin);
     document.addEventListener("keydown", this.handleKeybinds.bind(this));
+  }
+
+  navigateUp(): void {
+    if (!this.context || this.lastSuggestions.length === 0) return;
+    
+    this.selectedIndex = this.selectedIndex > 0 
+      ? this.selectedIndex - 1 
+      : this.lastSuggestions.length - 1;
+    
+    this.updateSelectedSuggestion();
+  }
+
+  navigateDown(): void {
+    if (!this.context || this.lastSuggestions.length === 0) return;
+    
+    this.selectedIndex = this.selectedIndex < this.lastSuggestions.length - 1 
+      ? this.selectedIndex + 1 
+      : 0;
+    
+    this.updateSelectedSuggestion();
+  }
+
+  private updateSelectedSuggestion(): void {
+    // Update the visual selection in the suggestion menu
+    const suggestionElements = document.querySelectorAll('.suggestion-item');
+    suggestionElements.forEach((el, index) => {
+      if (index === this.selectedIndex) {
+        el.addClass('is-selected');
+      } else {
+        el.removeClass('is-selected');
+      }
+    });
   }
 
   private handleKeybinds(evt: KeyboardEvent): void {
@@ -63,27 +96,22 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
       this.close();
       return;
     }
-    // Navigation (up/down/tab etc)
+    // Navigation (up/down)
     const navActions = [
       { action: "up", move: -1 },
       { action: "down", move: 1 },
-      { action: "tabNext", move: 1 },
-      { action: "tabPrev", move: -1 },
-      { action: "macosUp", move: -1 },
-      { action: "macosDown", move: 1 },
-      { action: "vimUp", move: -1 },
-      { action: "vimDown", move: 1 },
-      { action: "vimAltUp", move: -1 },
-      { action: "vimAltDown", move: 1 },
     ];
     for (const nav of navActions) {
       if (keybindManager.getKeysForAction(nav.action as import("../settings/keybinds").KeybindAction).includes(evt.key)) {
         evt.preventDefault();
         evt.stopPropagation();
-        // TODO: Implement navigation logic (move selection up/down)
-        // This requires tracking the selected index in the suggestion list
-        // TODO: Implement hotkey logging
-        // logger.hotkey(`Navigation ${nav.action}`, { key: evt.key, move: nav.move });
+        
+        if (nav.move > 0) {
+          this.navigateDown();
+        } else {
+          this.navigateUp();
+        }
+        
         logger.debug(`Navigate ${nav.action} (${nav.move})`);
         return;
       }
@@ -92,11 +120,12 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     if (keybindManager.getKeysForAction("select").includes(evt.key)) {
       evt.preventDefault();
       evt.stopPropagation();
-      // TODO: Implement select logic (insert selected suggestion)
-      // TODO: Implement hotkey logging
-      // logger.hotkey("Select suggestion", { key: evt.key });
+      
+      if (this.lastSuggestions.length > 0) {
+        this.selectSuggestion(this.lastSuggestions[this.selectedIndex], evt);
+      }
+      
       logger.debug("Select suggestion");
-      // this.selectSuggestion(...)
       return;
     }
     // Close menu
@@ -116,6 +145,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     file: TFile | null
   ): EditorSuggestTriggerInfo | null {
     this.selected = false;
+    this.selectedIndex = 0;
     if (!file) return null;
 
     const line = editor.getLine(cursor.line);
@@ -185,6 +215,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
         ...s,
         word: capitalizeWord(s.word, capitalizedIndexes),
       }));
+      this.selectedIndex = 0;
       return {
         start: { line: cursor.line, ch: start },
         end: { line: cursor.line, ch: end },
@@ -227,6 +258,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
             hasOnlyNumbersOrSpecialChars: hasOnlyNumbersOrSpecialChars(context.query)
           });
           this.lastSuggestions = [];
+          this.selectedIndex = 0;
           this.cachedSuggestions[context.query.toLowerCase()] = [];
           resolve([]);
           return;
@@ -245,6 +277,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
               ...s,
               word: capitalizeWord(s.word, capitalizedIndexes),
             }));
+          this.selectedIndex = 0;
           resolve(this.lastSuggestions);
           return;
         }
@@ -270,6 +303,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
             }));
 
           this.lastSuggestions = suggestions;
+          this.selectedIndex = 0;
           this.cachedSuggestions[lowerCaseQuery] = rawSuggestions;
 
           resolve(suggestions);
@@ -284,6 +318,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
           } else {
             logger.error("Typer: Error fetching suggestions:", error);
             this.lastSuggestions = [];
+            this.selectedIndex = 0;
             this.cachedSuggestions[context.query.toLowerCase()] = [];
             resolve([]);
           }
@@ -293,6 +328,14 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   }
 
   renderSuggestion(suggestion: Suggestion, el: HTMLElement): void {
+    // Add class for navigation selection
+    el.addClass('suggestion-item');
+    
+    // Add selected class if this is the currently selected suggestion
+    const suggestionIndex = this.lastSuggestions.indexOf(suggestion);
+    if (suggestionIndex === this.selectedIndex) {
+      el.addClass('is-selected');
+    }
     // Log menu UI details without showing suggestion content
     logger.menu("Rendering suggestion UI", { 
       rank: suggestion.rank,
@@ -418,7 +461,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     }
 
     // replace and add a space if enabled
-    const insertSpace = keybindManager.isInsertSpaceAfter();
+    const insertSpace = keybindManager.insertSpace;
     editor.replaceRange(suggestion.word + (insertSpace ? " " : ""), start, end);
     editor.setCursor({
       line: end.line,

@@ -5,60 +5,40 @@ export type KeybindAction =
   | "down"
   | "select"
   | "close"
-  | "numberSelect"
-  | "tabNext"
-  | "tabPrev"
-  | "macosUp"
-  | "macosDown"
-  | "vimUp"
-  | "vimDown"
-  | "vimAltUp"
-  | "vimAltDown";
-
-export type KeybindMode = "default" | "macos" | "tabs" | "vim";
+  | "numberSelect";
 
 export interface Keybinds {
   [action: string]: string[];
 }
 
 export class KeybindManager {
-  private mode: KeybindMode;
   private keybinds: Keybinds;
   private insertSpaceAfter: boolean;
 
-  constructor(mode: KeybindMode = CONFIG.keybind_modes.default as KeybindMode) {
-    this.mode = mode;
+  constructor() {
     const { insertSpaceAfter, ...keybinds } = CONFIG.keybinds;
     this.keybinds = keybinds;
     this.insertSpaceAfter = CONFIG.keybinds.insertSpaceAfter;
   }
 
-  setMode(mode: KeybindMode) {
-    this.mode = mode;
-  }
-
-  getMode(): KeybindMode {
-    return this.mode;
-  }
-
-  getKeybinds(): Keybinds {
+  get binds(): Keybinds {
     return this.keybinds;
+  }
+
+  get insertSpace(): boolean {
+    return this.insertSpaceAfter;
+  }
+
+  set insertSpace(value: boolean) {
+    this.insertSpaceAfter = value;
   }
 
   getKeysForAction(action: KeybindAction): string[] {
     return this.keybinds[action] || [];
   }
 
-  isInsertSpaceAfter(): boolean {
-    return this.insertSpaceAfter;
-  }
-
   overrideKeybind(action: KeybindAction, keys: string[]) {
     this.keybinds[action] = keys;
-  }
-
-  setInsertSpaceAfter(val: boolean) {
-    this.insertSpaceAfter = val;
   }
 }
 

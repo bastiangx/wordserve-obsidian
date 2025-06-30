@@ -5,9 +5,9 @@
 # Min number of chars before showing suggestions
 minWordLength = 3
 # Max number of suggestions to show
-maxSuggestions = 6
+maxSuggestions = 20
 # Time (ms) between keystrokes and suggestion fetch
-debounceTime = 10
+debounceTime = 20
 # Toggle fast selection via digit keys
 numberSelection = true
 # Always show suggestion rankings, even if digit selection is off
@@ -57,29 +57,25 @@ maxChars = 24
 [limits]
 minWordLength = { min = 1, max = 10 }
 maxSuggestions = { min = 1, max = 180 }
-debounceTime   = { min = 1, max = 2000 }
+debounceTime = { min = 1, max = 2000 }
 
 [style]
 # Padding for suggestion container (top/bottom, left/right)
-padding = "6px 12px"
-# Compact mode padding
-compact_padding = "3px 8px"
+padding = "6px 6px"
+# Compact mode padding (tighter)
+compact_padding = "3px 3px"
 # Size (width/height/line-height) of the rank element
 rank_size = 18
-# Compact rank size
-compact_rank_size = 14
+# Compact rank size (smaller)
+compact_rank_size = 10
 # Border radius of the rank element
 rank_border_radius = "12%"
 # Margin to the right of the rank element
-rank_margin_right = 8
-# Compact margin
-compact_rank_margin_right = 6
+rank_margin_right = 4
+# Compact margin (tight)
+compact_rank_margin_right = 2
 # Background opacity of the rank element (in percent)
 rank_bg_opacity = 12
-# Font size of the rank element
-rank_font_size = 11
-# Compact font size
-compact_rank_font_size = 9
 # Background opacity of the selected rank element (in percent)
 selected_rank_bg_opacity = 55
 
@@ -89,19 +85,11 @@ up = ["ArrowUp"]
 down = ["ArrowDown"]
 select = ["Enter"]
 close = ["Escape"]
-numberSelect = ["1","2","3","4","5","6","7","8","9"]
-tabNext = ["Tab"]
-tabPrev = ["Shift+Tab"]
-macosUp = ["Ctrl+p"]
-macosDown = ["Ctrl+n"]
-vimUp = ["K"]
-vimDown = ["J"]
-vimAltUp = ["Ctrl+k"]
-vimAltDown = ["Ctrl+j"]
+numberSelect = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 insertSpaceAfter = true
 
 [keybind_modes]
 # Predefined navigation modes
-# 'default' uses arrows, 'macos' uses ctrl+n/p, 'tabs' uses tab/shift+tab, 'vim' uses K/J or ctrl+j/k
-available = ["default", "macos", "tabs", "vim"]
+# 'default' uses arrows only
+available = ["default"]
 default = "default"

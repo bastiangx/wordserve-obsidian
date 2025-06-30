@@ -22,12 +22,6 @@ export default class TyperPlugin extends Plugin {
       this.suggestor.numberSelectionEnabled = this.settings.numberSelection;
       this.suggestor.debounceDelay = this.settings.debounceTime;
       this.suggestor.showRankingOverride = this.settings.showRankingOverride;
-      // only sets if user overrides binds
-      if (this.settings.keybindMode) {
-        import("./src/settings/keybinds").then(({ keybindManager }) => {
-          keybindManager.setMode(this.settings.keybindMode!);
-        });
-      }
     };
 
     this.client = new TyperClient(this);
@@ -43,6 +37,48 @@ export default class TyperPlugin extends Plugin {
     }
 
     this.addSettingTab(new TyperSettingTab(this.app, this));
+    
+    // Add navigation commands for hotkey support
+    this.addCommand({
+      id: 'navigation-up',
+      name: 'Navigation: Up',
+      callback: () => {
+        if (this.suggestor.context) {
+          this.suggestor.navigateUp();
+        }
+      }
+    });
+
+    this.addCommand({
+      id: 'navigation-down',
+      name: 'Navigation: Down',
+      callback: () => {
+        if (this.suggestor.context) {
+          this.suggestor.navigateDown();
+        }
+      }
+    });
+    
+    // Add navigation commands for hotkey support
+    this.addCommand({
+      id: 'navigation-up',
+      name: 'Navigation: Up',
+      callback: () => {
+        if (this.suggestor.context) {
+          this.suggestor.navigateUp();
+        }
+      }
+    });
+
+    this.addCommand({
+      id: 'navigation-down',
+      name: 'Navigation: Down',
+      callback: () => {
+        if (this.suggestor.context) {
+          this.suggestor.navigateDown();
+        }
+      }
+    });
     
     // Initialize body classes for accessibility and rendering options
     this.updateBodyClasses();

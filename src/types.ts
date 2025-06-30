@@ -4,7 +4,6 @@ export interface TyperPluginSettings {
   debounceTime: number;
   numberSelection: boolean;
   showRankingOverride: boolean;
-  keybindMode?: "default" | "macos" | "tabs" | "vim";
   compactMode: boolean;
   fontSize: "smallest" | "smaller" | "small" | "editor" | "ui-small" | "ui-medium" | "ui-larger";
   fontWeight: "thin" | "extralight" | "light" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black";
@@ -63,14 +62,6 @@ export interface CompletionResponse {
 export interface CompletionError {
   e: string; // message
   c: number; // code
-}
-
-export interface ConfigUpdateRequest {
-  max_limit?: number;
-  min_prefix?: number;
-  max_prefix?: number;
-  enable_filter?: boolean;
-  dictionary_size?: number;
 }
 
 export interface ConfigResponse {
