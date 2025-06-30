@@ -1,0 +1,303 @@
+import { App, normalizePath, Notice, Plugin } from "obsidian";
+import { AbbreviationMap, AbbreviationEntry } from "../types";
+import { CONFIG } from "./config";
+import { logger } from "../utils/logger";
+import * as path from "path";
+
+export class AbbreviationManager {
+  private app: App;
+  private plugin: Plugin;
+  private abbreviations: AbbreviationMap = {};
+  private filePath: string;
+
+  constructor(app: App, plugin: Plugin) {
+    this.app = app;
+    this.plugin = plugin;
+    this.filePath = this.getPluginDataPath();
+    logger.abbrv(`Using abbreviation file path: ${this.filePath}`);
+    this.initialize();
+  }
+
+  private getPluginDataPath(): string {
+    return normalizePath(
+      path.join(
+        this.plugin.app.vault.configDir,
+        "plugins",
+        this.plugin.manifest.id,
+        "data",
+        "abbrv-map.json"
+      )
+    );
+  }
+
+  private async initialize(): Promise<void> {
+    try {
+      await this.loadAbbreviations();
+    } catch (error) {
+      logger.abbrv(
+        "Failed to load abbreviations, creating default file",
+        error
+      );
+      await this.createDefaultFile();
+    }
+  }
+
+  private async loadAbbreviations(): Promise<void> {
+    try {
+      const fileExists = await this.app.vault.adapter.exists(this.filePath);
+      if (!fileExists) {
+        await this.createDefaultFile();
+        return;
+      }
+
+      const content = await this.app.vault.adapter.read(this.filePath);
+      const data = JSON.parse(content);
+
+      if (this.validateAbbreviationMap(data)) {
+        this.abbreviations = data;
+        logger.abbrv(
+          `Loaded ${Object.keys(this.abbreviations).length} abbreviations`
+        );
+      } else {
+        logger.abbrv("Invalid abbreviation data, creating default file");
+        await this.createDefaultFile();
+      }
+    } catch (error) {
+      logger.abbrv("Error loading abbreviations", error);
+      await this.createDefaultFile();
+    }
+  }
+
+  private async createDefaultFile(): Promise<void> {
+    const defaultEntry: AbbreviationEntry = {
+      shortcut: "STR",
+      target: "Star typer-obsidian on github NOW!",
+      created: Date.now(),
+    };
+
+    this.abbreviations = {
+      STR: defaultEntry,
+    };
+
+    await this.saveAbbreviations();
+  }
+
+  private validateAbbreviationMap(data: any): data is AbbreviationMap {
+    if (!data || typeof data !== "object") return false;
+
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof key !== "string" || !this.validateAbbreviationEntry(value)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private validateAbbreviationEntry(entry: any): entry is AbbreviationEntry {
+    return (
+      entry &&
+      typeof entry === "object" &&
+      typeof entry.shortcut === "string" &&
+      typeof entry.target === "string" &&
+      typeof entry.created === "number" &&
+      this.isValidShortcut(entry.shortcut) &&
+      this.isValidTarget(entry.target)
+    );
+  }
+
+  private isValidShortcut(shortcut: string): boolean {
+    if (
+      !shortcut ||
+      shortcut.length === 0 ||
+      shortcut.length > CONFIG.abbreviations.maxShortcutLength
+    ) {
+      return false;
+    }
+
+    // Check for valid UTF-8 characters (letters, numbers, symbols)
+    // Exclude control characters and problematic characters
+    const validPattern = /^[\p{L}\p{N}\p{P}\p{S}]+$/u;
+    return validPattern.test(shortcut);
+  }
+
+  private isValidTarget(target: string): boolean {
+    if (
+      !target ||
+      target.length === 0 ||
+      target.length > CONFIG.abbreviations.maxTargetLength
+    ) {
+      return false;
+    }
+
+    // Basic validation - exclude null bytes and other control characters that could break JSON
+    return (
+      !target.includes("\0") &&
+      !target.includes("\x01") &&
+      !target.includes("\x02")
+    );
+  }
+
+  private async saveAbbreviations(): Promise<void> {
+    try {
+      const dir = path.dirname(this.filePath);
+      const dirExists = await this.app.vault.adapter.exists(dir);
+      if (!dirExists) {
+        await this.app.vault.adapter.mkdir(dir);
+      }
+
+      const content = JSON.stringify(this.abbreviations, null, 2);
+      await this.app.vault.adapter.write(this.filePath, content);
+      logger.abbrv("Abbreviations saved successfully");
+    } catch (error) {
+      logger.abbrv("Error saving abbreviations", error);
+    }
+  }
+
+  public findAbbreviation(text: string): AbbreviationEntry | null {
+    const entry = this.abbreviations[text];
+    return entry || null;
+  }
+
+  public async addAbbreviation(
+    shortcut: string,
+    target: string
+  ): Promise<boolean> {
+    if (!this.isValidShortcut(shortcut) || !this.isValidTarget(target)) {
+      return false;
+    }
+
+    const entry: AbbreviationEntry = {
+      shortcut,
+      target,
+      created: Date.now(),
+    };
+
+    this.abbreviations[shortcut] = entry;
+    await this.saveAbbreviations();
+    return true;
+  }
+
+  public async removeAbbreviation(shortcut: string): Promise<boolean> {
+    if (shortcut in this.abbreviations) {
+      delete this.abbreviations[shortcut];
+      await this.saveAbbreviations();
+      return true;
+    }
+    return false;
+  }
+
+  public async updateAbbreviation(
+    oldShortcut: string,
+    newShortcut: string,
+    target: string
+  ): Promise<boolean> {
+    if (!this.isValidShortcut(newShortcut) || !this.isValidTarget(target)) {
+      return false;
+    }
+
+    // If shortcut changed, remove old one
+    if (oldShortcut !== newShortcut && oldShortcut in this.abbreviations) {
+      delete this.abbreviations[oldShortcut];
+    }
+
+    const entry: AbbreviationEntry = {
+      shortcut: newShortcut,
+      target,
+      created: this.abbreviations[oldShortcut]?.created || Date.now(),
+    };
+
+    this.abbreviations[newShortcut] = entry;
+    await this.saveAbbreviations();
+    return true;
+  }
+
+  public getAllAbbreviations(): AbbreviationEntry[] {
+    return Object.values(this.abbreviations);
+  }
+
+  public searchAbbreviations(query: string): AbbreviationEntry[] {
+    const lowerQuery = query.toLowerCase();
+    return Object.values(this.abbreviations).filter((entry) =>
+      entry.shortcut.toLowerCase().includes(lowerQuery)
+    );
+  }
+
+  public sortAbbreviations(
+    entries: AbbreviationEntry[],
+    sortBy:
+      | "newest"
+      | "oldest"
+      | "alphabetical-asc"
+      | "alphabetical-desc" = "newest"
+  ): AbbreviationEntry[] {
+    const sorted = [...entries];
+
+    switch (sortBy) {
+      case "newest":
+        return sorted.sort((a, b) => b.created - a.created);
+      case "oldest":
+        return sorted.sort((a, b) => a.created - b.created);
+      case "alphabetical-asc":
+        return sorted.sort((a, b) => a.shortcut.localeCompare(b.shortcut));
+      case "alphabetical-desc":
+        return sorted.sort((a, b) => b.shortcut.localeCompare(a.shortcut));
+      default:
+        return sorted;
+    }
+  }
+
+  public checkForAbbreviation(
+    text: string,
+    cursorPos: number
+  ): { abbreviation: AbbreviationEntry; start: number; end: number } | null {
+    // Look backwards from cursor to find potential abbreviation
+    let start = cursorPos;
+
+    // Find word boundaries similar to how the main suggest system works
+    while (
+      start > 0 &&
+      /[\p{L}\p{N}\p{P}\p{S}]/u.test(text.charAt(start - 1)) &&
+      !/\s/.test(text.charAt(start - 1))
+    ) {
+      start--;
+    }
+
+    if (start === cursorPos) return null;
+
+    const potentialShortcut = text.slice(start, cursorPos);
+
+    // Only check if the potential shortcut doesn't contain whitespace
+    if (potentialShortcut.includes(" ") || potentialShortcut.includes("\t")) {
+      return null;
+    }
+
+    const abbreviation = this.findAbbreviation(potentialShortcut);
+
+    if (abbreviation) {
+      return {
+        abbreviation,
+        start,
+        end: cursorPos,
+      };
+    }
+
+    return null;
+  }
+
+  public expandAbbreviation(
+    shortcut: string,
+    showNotification: boolean = false
+  ): string | null {
+    const abbreviation = this.findAbbreviation(shortcut);
+    if (!abbreviation) return null;
+
+    logger.abbrv(`Expanding abbreviation: ${shortcut} -> [target text]`);
+
+    if (showNotification) {
+      new Notice(`${shortcut} used as shortcut`);
+    }
+
+    return abbreviation.target;
+  }
+}

@@ -8,16 +8,25 @@ import {
   CompletionResponse,
   ConfigUpdateRequest,
   ConfigResponse,
+  DictionaryRequest,
+  DictionaryResponse,
+  DictionarySizeOption,
   CompletionError,
+  TyperPluginSettings,
 } from "../types";
+import { logger } from "../utils/logger";
+
+interface TyperPlugin extends Plugin {
+  settings: TyperPluginSettings;
+}
 
 export class TyperClient {
   private process: child_process.ChildProcess | null = null;
-  private plugin: Plugin;
+  private plugin: TyperPlugin;
   private isReady: boolean = false;
   private responseBuffer: Buffer = Buffer.alloc(0);
 
-  constructor(plugin: Plugin) {
+  constructor(plugin: TyperPlugin) {
     this.plugin = plugin;
   }
 
@@ -30,7 +39,7 @@ export class TyperClient {
       await this.startProcess();
       return this.isReady;
     } catch (error) {
-      console.error("Failed to initialize TyperClient:", error);
+      logger.error("Failed to initialize TyperClient:", error);
       return false;
     }
   }
@@ -75,18 +84,22 @@ export class TyperClient {
         }
 
         const args = [`--data=${binaryDir}`];
+        
+        if (this.plugin.settings.debugMode) {
+          args.push('-d');
+        }
 
         this.process = child_process.spawn(binaryPath, args, {
           stdio: ["pipe", "pipe", "pipe"],
         });
 
         this.process.on("exit", (code) => {
-          console.log(`typer process exited with code ${code}`);
+          logger.debug(`typer process exited with code ${code}`);
           this.cleanup();
         });
 
         this.process.on("error", (error) => {
-          console.error("Process error:", error);
+          logger.error("Process error:", error);
           reject(error);
         });
 
@@ -95,7 +108,7 @@ export class TyperClient {
         });
 
         this.process.stderr?.on("data", (data: Buffer) => {
-          console.log(`Typer log: ${data.toString()}`);
+          logger.parseCoreLog(data.toString());
         });
 
         // Test connection with simple request
@@ -129,16 +142,19 @@ export class TyperClient {
           break;
         } catch (error) {
           // Not enough data yet, wait for more
+          logger.msgpack("Incomplete MessagePack data, waiting for more", { 
+            bufferLength: this.responseBuffer.length 
+          });
           break;
         }
       }
     } catch (error) {
-      console.error("Error processing binary data:", error);
+      logger.error("Error processing binary data:", error);
     }
   }
 
   private processResponse(response: any) {
-    console.log("Received response:", response);
+    logger.msgpack("Received response", response);
 
     // Handle completion response
     if (response.s && Array.isArray(response.s)) {
@@ -155,6 +171,12 @@ export class TyperClient {
       return;
     }
 
+    // Handle dictionary response or config response
+    if (response.status !== undefined) {
+      this.resolvePromise(response);
+      return;
+    }
+
     // Handle error response
     if (response.e) {
       const error = new Error(`${response.e} (code: ${response.c || 0})`);
@@ -162,13 +184,7 @@ export class TyperClient {
       return;
     }
 
-    // Handle config response
-    if (response.status) {
-      this.resolvePromise(response);
-      return;
-    }
-
-    console.warn("Unknown response format:", response);
+    logger.debug("Unknown response format:", response); // Changed from warn to debug since it's diagnostic
   }
 
   private currentPromise: {
@@ -258,7 +274,7 @@ export class TyperClient {
     });
   }
 
-  async updateConfig(config: ConfigUpdateRequest): Promise<ConfigResponse> {
+  async updateConfig(config: Partial<ConfigUpdateRequest>): Promise<ConfigResponse> {
     if (!this.process || !this.isReady) {
       await this.initialize();
     }
@@ -287,12 +303,96 @@ export class TyperClient {
     });
   }
 
+  async setDictionarySize(chunkCount: number): Promise<ConfigResponse> {
+    if (!this.process || !this.isReady) {
+      await this.initialize();
+    }
+
+    const validChunkCount = Math.max(1, Math.floor(chunkCount));
+
+    return new Promise((resolve, reject) => {
+      if (this.currentPromise) {
+        reject(new Error("Request already in progress"));
+        return;
+      }
+
+      this.currentPromise = { resolve, reject };
+
+      const request = {
+        dictionary_size: validChunkCount,
+      };
+
+      try {
+        this.sendMsgPackData(request);
+      } catch (error) {
+        this.currentPromise = null;
+        reject(error);
+      }
+
+      setTimeout(() => {
+        if (this.currentPromise) {
+          this.currentPromise = null;
+          reject(new Error("Dictionary size update timeout"));
+        }
+      }, 5000);
+    });
+  }
+
+  async restart(): Promise<boolean> {
+    logger.debug("Restarting typer client");
+    this.cleanup();
+    
+    // Wait a bit before restarting
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    try {
+      return await this.initialize();
+    } catch (error) {
+      logger.error("Failed to restart typer client:", error);
+      return false;
+    }
+  }
+
+  async getAvailableChunkCount(): Promise<ConfigResponse> {
+    if (!this.process || !this.isReady) {
+      await this.initialize();
+    }
+
+    return new Promise((resolve, reject) => {
+      if (this.currentPromise) {
+        reject(new Error("Request already in progress"));
+        return;
+      }
+
+      this.currentPromise = { resolve, reject };
+
+      const request = {
+        get_chunk_count: true,
+      };
+
+      try {
+        this.sendMsgPackData(request);
+      } catch (error) {
+        this.currentPromise = null;
+        reject(error);
+      }
+
+      setTimeout(() => {
+        if (this.currentPromise) {
+          this.currentPromise = null;
+          reject(new Error("Get chunk count timeout"));
+        }
+      }, 3000);
+    });
+  }
+
   private sendMsgPackData(data: any) {
     if (!this.process || !this.process.stdin) {
       throw new Error("Process not available");
     }
 
     const encoded = encode(data);
+    logger.msgpack("Sending request", { request: data, encoded: encoded });
     this.process.stdin.write(encoded);
   }
 

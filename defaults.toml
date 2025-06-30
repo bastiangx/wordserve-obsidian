@@ -12,6 +12,43 @@ debounceTime = 10
 numberSelection = true
 # Always show suggestion rankings, even if digit selection is off
 showRankingOverride = false
+# Compact mode for tighter UI
+compactMode = true
+# Font size for suggestions
+fontSize = "editor"
+# Font weight for suggestions
+fontWeight = "normal"
+# Debug mode for logging
+debugMode = false
+# Dictionary size in number of chunks (default: 5 chunks = 50k words)
+dictionarySize = 5
+# Enable abbreviations/shortcuts feature
+abbreviationsEnabled = true
+
+[abbreviations]
+# Maximum length for shortcuts
+maxShortcutLength = 10
+# Maximum length for target phrases (in characters)
+maxTargetLength = 4294967295
+# Show notification when abbreviation is expanded
+showNotification = false
+
+[debug]
+# Debug logging toggles (only active when debugMode = true)
+msgpackData = false
+menuRender = false
+configChange = false
+hotkeys = false
+renderEvents = false
+abbrEvents = false
+
+[accessibility]
+# Make suggestion suffix bold
+boldSuffix = false
+# Show all suggestions in uppercase
+uppercaseSuggestions = false
+# Prefix color intensity: "normal", "muted", "faint"
+prefixColorIntensity = "faint"
 
 [internals]
 # Max allowed chars for typing before suggestions hide
@@ -19,22 +56,30 @@ maxChars = 24
 
 [limits]
 minWordLength = { min = 1, max = 10 }
-maxSuggestions = { min = 1, max = 64 }
+maxSuggestions = { min = 1, max = 180 }
 debounceTime   = { min = 1, max = 2000 }
 
 [style]
 # Padding for suggestion container (top/bottom, left/right)
 padding = "6px 12px"
+# Compact mode padding
+compact_padding = "3px 8px"
 # Size (width/height/line-height) of the rank element
 rank_size = 18
+# Compact rank size
+compact_rank_size = 14
 # Border radius of the rank element
 rank_border_radius = "12%"
 # Margin to the right of the rank element
 rank_margin_right = 8
+# Compact margin
+compact_rank_margin_right = 6
 # Background opacity of the rank element (in percent)
 rank_bg_opacity = 12
 # Font size of the rank element
 rank_font_size = 11
+# Compact font size
+compact_rank_font_size = 9
 # Background opacity of the selected rank element (in percent)
 selected_rank_bg_opacity = 55
 

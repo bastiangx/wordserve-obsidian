@@ -8,6 +8,7 @@ import {
   TFile,
 } from "obsidian";
 import { TyperClient } from "../core/client";
+import { AbbreviationManager } from "../core/abbrv";
 import { CONFIG } from "../core/config";
 import { Suggestion } from "../types";
 import {
@@ -16,6 +17,8 @@ import {
   hasOnlyNumbersOrSpecialChars,
 } from "../utils/string";
 import { keybindManager } from "../settings/keybinds";
+import TyperPlugin from "../../main";
+import { logger } from "../utils/logger";
 
 export class TyperSuggest extends EditorSuggest<Suggestion> {
   public minChars: number = CONFIG.plugin.minWordLength;
@@ -31,10 +34,14 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   private selected: boolean = false;
   private debounceTimeout: NodeJS.Timeout | null = null;
   private client: TyperClient;
+  private plugin: TyperPlugin;
+  public abbreviationManager: AbbreviationManager;
 
-  constructor(app: App, client: TyperClient) {
+  constructor(app: App, client: TyperClient, plugin: TyperPlugin) {
     super(app);
     this.client = client;
+    this.plugin = plugin;
+    this.abbreviationManager = new AbbreviationManager(app, plugin);
     document.addEventListener("keydown", this.handleKeybinds.bind(this));
   }
 
@@ -75,8 +82,9 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
         evt.stopPropagation();
         // TODO: Implement navigation logic (move selection up/down)
         // This requires tracking the selected index in the suggestion list
-        // For now, just log
-        console.log(`Navigate ${nav.action} (${nav.move})`);
+        // TODO: Implement hotkey logging
+        // logger.hotkey(`Navigation ${nav.action}`, { key: evt.key, move: nav.move });
+        logger.debug(`Navigate ${nav.action} (${nav.move})`);
         return;
       }
     }
@@ -85,8 +93,9 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
       evt.preventDefault();
       evt.stopPropagation();
       // TODO: Implement select logic (insert selected suggestion)
-      // For now, just log
-      console.log("Select suggestion");
+      // TODO: Implement hotkey logging
+      // logger.hotkey("Select suggestion", { key: evt.key });
+      logger.debug("Select suggestion");
       // this.selectSuggestion(...)
       return;
     }
@@ -94,6 +103,8 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     if (keybindManager.getKeysForAction("close").includes(evt.key)) {
       evt.preventDefault();
       evt.stopPropagation();
+      // TODO: Implement hotkey logging
+      // logger.hotkey("Close menu", { key: evt.key });
       this.close();
       return;
     }
@@ -104,7 +115,6 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     editor: Editor,
     file: TFile | null
   ): EditorSuggestTriggerInfo | null {
-    console.log("TyperSuggest: onTrigger called", cursor, file?.path);
     this.selected = false;
     if (!file) return null;
 
@@ -117,7 +127,32 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
       start--;
     }
     const currentWord = line.slice(start, end);
-    console.log("TyperSuggest: currentWord", currentWord);
+    
+    // Check for abbreviations first if enabled
+    if (this.plugin.settings.abbreviationsEnabled && currentWord) {
+      const abbreviationResult = this.abbreviationManager.checkForAbbreviation(line, cursor.ch);
+      if (abbreviationResult) {
+        const { abbreviation, start: abbrevStart, end: abbrevEnd } = abbreviationResult;
+        
+        // Use the expandAbbreviation method which handles logging and notifications
+        const expandedText = this.abbreviationManager.expandAbbreviation(
+          abbreviation.shortcut, 
+          this.plugin.settings.abbreviationNotification
+        );
+        
+        if (expandedText) {
+          editor.replaceRange(expandedText + " ", 
+            { line: cursor.line, ch: abbrevStart }, 
+            { line: cursor.line, ch: abbrevEnd }
+          );
+          editor.setCursor({
+            line: cursor.line,
+            ch: abbrevStart + expandedText.length + 1
+          });
+        }
+        return null; // Don't show suggestions
+      }
+    }
     
     if (hasOnlyNumbersOrSpecialChars(currentWord)) {
       return null;
@@ -131,14 +166,14 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
       return null;
     }
 
+    // Skip if this is the same query we just processed (avoid duplicate triggers)
     if (
       currentWord.toLowerCase() === this.lastWord &&
       this.lastSuggestions.length === 0
     ) {
-      console.log("TyperSuggest: Skipping duplicate word", currentWord);
       return null;
     }
-
+    
     // Save the word for cache and future comparisons
     this.lastWord = currentWord.toLowerCase();
     if (
@@ -165,14 +200,14 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   }
 
   async getSuggestions(context: EditorSuggestContext): Promise<Suggestion[]> {
-    console.log("TyperSuggest: getSuggestions called", context.query);
+    logger.msgpack("TyperSuggest: getSuggestions called", context.query);
     return this.debouncedGetSuggestions(context);
   }
 
   private async debouncedGetSuggestions(
     context: EditorSuggestContext
   ): Promise<Suggestion[]> {
-    console.log("TyperSuggest: debouncedGetSuggestions called", context.query);
+    logger.msgpack("TyperSuggest: debouncedGetSuggestions called", context.query);
     
     if (this.debounceTimeout) {
       clearTimeout(this.debounceTimeout);
@@ -185,7 +220,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
           context.query.length > this.maxChars ||
           hasOnlyNumbersOrSpecialChars(context.query)
         ) {
-          console.log("TyperSuggest: Query doesn't meet criteria", {
+          logger.msgpack("TyperSuggest: Query doesn't meet criteria", {
             length: context.query.length,
             minChars: this.minChars,
             maxChars: this.maxChars,
@@ -241,11 +276,13 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
         } catch (error) {
           if (
             error === "Duplicate request" ||
-            error === "Request timeout"
+            error === "Request timeout" ||
+            (error instanceof Error && error.message === "Request already in progress")
           ) {
+            // Silent handling - just return cached suggestions for concurrent requests
             resolve(this.lastSuggestions);
           } else {
-            console.error("Typer: Error fetching suggestions:", error);
+            logger.error("Typer: Error fetching suggestions:", error);
             this.lastSuggestions = [];
             this.cachedSuggestions[context.query.toLowerCase()] = [];
             resolve([]);
@@ -256,19 +293,64 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   }
 
   renderSuggestion(suggestion: Suggestion, el: HTMLElement): void {
-    console.log("TyperSuggest: renderSuggestion called", suggestion);
+    // Log menu UI details without showing suggestion content
+    logger.menu("Rendering suggestion UI", { 
+      rank: suggestion.rank,
+      numberSelectionEnabled: this.numberSelectionEnabled,
+      showRankingOverride: this.showRankingOverride,
+      containerClasses: el.className,
+      currentLimit: this.limit
+    });
     
     const container = el.createDiv({ cls: "typer-suggestion-container" });
 
+    // Log container styling details for render debugging
+    const computedStyle = window.getComputedStyle(container);
+    logger.render("Container element styling", {
+      className: container.className,
+      fontSize: computedStyle.fontSize,
+      fontWeight: computedStyle.fontWeight,
+      fontFamily: computedStyle.fontFamily,
+      padding: computedStyle.padding,
+      position: { x: el.offsetLeft, y: el.offsetTop },
+      size: { width: el.offsetWidth, height: el.offsetHeight }
+    });
+
     const displayRank = this.lastSuggestions.indexOf(suggestion) + 1;
     const rankEl = container.createSpan({ cls: "typer-suggestion-rank" });
+    
     if (displayRank > 0 && (this.numberSelectionEnabled || this.showRankingOverride)) {
       rankEl.setText(`${displayRank}`);
+      
+      // Log rank element styling
+      const rankStyle = window.getComputedStyle(rankEl);
+      logger.menu("Rank element styling", {
+        displayed: true,
+        rank: displayRank,
+        backgroundColor: rankStyle.backgroundColor,
+        color: rankStyle.color,
+        fontSize: rankStyle.fontSize,
+        width: rankStyle.width,
+        height: rankStyle.height
+      });
     } else {
       rankEl.style.display = "none";
+      logger.menu("Rank element hidden", { 
+        numberSelection: this.numberSelectionEnabled, 
+        showOverride: this.showRankingOverride 
+      });
     }
 
     const contentEl = container.createSpan({ cls: "typer-suggestion-content" });
+    
+    // Log content styling without showing actual content
+    const contentStyle = window.getComputedStyle(contentEl);
+    logger.render("Content element styling", {
+      className: contentEl.className,
+      textTransform: contentStyle.textTransform,
+      color: contentStyle.color,
+      fontWeight: contentStyle.fontWeight
+    });
     
     // Highlight prefix with muted colors
     if (this.context && this.context.query) {
@@ -289,6 +371,17 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
         
         const suffixSpan = contentEl.createSpan({ cls: "suggestion-suffix" });
         suffixSpan.setText(suffix);
+        
+        // Log prefix/suffix styling
+        const prefixStyle = window.getComputedStyle(prefixSpan);
+        const suffixStyle = window.getComputedStyle(suffixSpan);
+        logger.render("Prefix/suffix styling", {
+          prefixColor: prefixStyle.color,
+          suffixColor: suffixStyle.color,
+          suffixFontWeight: suffixStyle.fontWeight,
+          prefixLength: prefixLength,
+          totalLength: word.length
+        });
       } else {
         contentEl.setText(suggestion.word);
       }
