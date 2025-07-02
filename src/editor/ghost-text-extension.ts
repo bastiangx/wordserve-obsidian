@@ -14,16 +14,11 @@ export const ghostTextState = StateField.define<{ pos: number; text: string } | 
 		}
 
 		if (tr.docChanged && value) {
-			const newPos = tr.changes.mapPos(value.pos);
+			const newPos = tr.changes.mapPos(value.pos, 1);
 			if (newPos === null) return null;
 			return { ...value, pos: newPos };
 		}
 
-		if (tr.selection && value) {
-			if (tr.selection.main.head !== value.pos) {
-				return null;
-			}
-		}
 
 		return value;
 	},
