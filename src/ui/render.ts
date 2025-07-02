@@ -1,3 +1,4 @@
+import { EditorView } from "@codemirror/view";
 import {
   App,
   Editor,
@@ -11,12 +12,10 @@ import { TyperClient } from "../core/client";
 import { AbbreviationManager } from "../core/abbrv";
 import { CONFIG } from "../core/config";
 import { Suggestion } from "../types";
-import {
-  capitalizeWord,
-  getCapitalizedIndexes,
-  hasOnlyNumbersOrSpecialChars,
-} from "../utils/string";
+import { capitalizeWord, getCapitalizedIndexes } from "../utils/string";
 import { keybindManager } from "../settings/keybinds";
+import { getCurrentWord, isWordEligible } from "../utils/extract";
+import { setGhostText, clearGhostText } from "../editor/ghost-text-extension";
 import TyperPlugin from "../../main";
 import { logger } from "../utils/logger";
 
@@ -27,115 +26,179 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   public debounceDelay: number = CONFIG.plugin.debounceTime;
   public numberSelectionEnabled: boolean = CONFIG.plugin.numberSelection;
   public showRankingOverride: boolean = false;
+  public smartBackspace: boolean = true;
 
   private lastWord = "";
   private lastSuggestions: Suggestion[] = [];
   private cachedSuggestions: Record<string, Suggestion[]> = {};
-  private selected: boolean = false;
-  private selectedIndex: number = 0;
   private debounceTimeout: NodeJS.Timeout | null = null;
   private client: TyperClient;
   private plugin: TyperPlugin;
   public abbreviationManager: AbbreviationManager;
+
+  private currentWord: string = "";
+  private selectedIndex: number = 0;
+  private originalWordForBackspace: string = "";
+  private lastCommittedWord: string = "";
+  private lastCommittedPosition: EditorPosition | null = null;
+  private observer: MutationObserver | null = null;
 
   constructor(app: App, client: TyperClient, plugin: TyperPlugin) {
     super(app);
     this.client = client;
     this.plugin = plugin;
     this.abbreviationManager = new AbbreviationManager(app, plugin);
-    document.addEventListener("keydown", this.handleKeybinds.bind(this));
-  }
+    this.scope.register([], " ", this.handleKeybinds.bind(this));
 
-  navigateUp(): void {
-    if (!this.context || this.lastSuggestions.length === 0) return;
-    
-    this.selectedIndex = this.selectedIndex > 0 
-      ? this.selectedIndex - 1 
-      : this.lastSuggestions.length - 1;
-    
-    this.updateSelectedSuggestion();
-  }
-
-  navigateDown(): void {
-    if (!this.context || this.lastSuggestions.length === 0) return;
-    
-    this.selectedIndex = this.selectedIndex < this.lastSuggestions.length - 1 
-      ? this.selectedIndex + 1 
-      : 0;
-    
-    this.updateSelectedSuggestion();
-  }
-
-  private updateSelectedSuggestion(): void {
-    // Update the visual selection in the suggestion menu
-    const suggestionElements = document.querySelectorAll('.suggestion-item');
-    suggestionElements.forEach((el, index) => {
-      if (index === this.selectedIndex) {
-        el.addClass('is-selected');
-      } else {
-        el.removeClass('is-selected');
+    this.observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (
+          mutation.type === "attributes" &&
+          mutation.attributeName === "class"
+        ) {
+          const target = mutation.target as HTMLElement;
+          if (target.classList.contains("is-selected")) {
+            const suggestionsContainer = (this as any).suggestions?.containerEl;
+            if (
+              suggestionsContainer &&
+              target.parentElement === suggestionsContainer
+            ) {
+              const index = Array.from(suggestionsContainer.children).indexOf(
+                target
+              );
+              if (index !== -1 && this.selectedIndex !== index) {
+                this.selectedIndex = index;
+                this.updateGhostText();
+              }
+            }
+          }
+        }
       }
     });
   }
 
+  open(): void {
+    super.open();
+    if ((this as any).suggestions?.containerEl) {
+      this.observer?.observe((this as any).suggestions.containerEl, {
+        attributes: true,
+        subtree: true,
+        attributeFilter: ["class"],
+      });
+    }
+  }
+
+  close(): void {
+    super.close();
+    this.observer?.disconnect();
+    if (this.context) {
+      clearGhostText((this.context.editor as any).cm);
+    }
+  }
+
+  public getLastSuggestions(): Suggestion[] {
+    return this.lastSuggestions;
+  }
+
   private handleKeybinds(evt: KeyboardEvent): void {
     if (!this.context) return;
-    // Digit selection
+
+    if (evt.key === "Backspace" && this.smartBackspace) {
+      const editor = this.context.editor;
+      const cursor = editor.getCursor();
+      if (
+        this.lastCommittedPosition &&
+        cursor.line === this.lastCommittedPosition.line &&
+        cursor.ch === this.lastCommittedPosition.ch
+      ) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        this.restoreFromCommittedWord();
+        return;
+      }
+    }
+
     if (
       this.numberSelectionEnabled &&
       keybindManager.getKeysForAction("numberSelect").includes(evt.key)
     ) {
       const idx = parseInt(evt.key, 10) - 1;
       if (idx < 0 || idx >= this.lastSuggestions.length) return;
-      const { editor, start, end } = this.context;
-      const currentWord = editor.getRange(start, end);
-      if (/\d/.test(currentWord)) return;
       evt.preventDefault();
       evt.stopPropagation();
       this.selectSuggestion(this.lastSuggestions[idx], evt);
       this.close();
       return;
     }
-    // Navigation (up/down)
-    const navActions = [
-      { action: "up", move: -1 },
-      { action: "down", move: 1 },
-    ];
-    for (const nav of navActions) {
-      if (keybindManager.getKeysForAction(nav.action as import("../settings/keybinds").KeybindAction).includes(evt.key)) {
-        evt.preventDefault();
-        evt.stopPropagation();
-        
-        if (nav.move > 0) {
-          this.navigateDown();
-        } else {
-          this.navigateUp();
-        }
-        
-        logger.debug(`Navigate ${nav.action} (${nav.move})`);
-        return;
-      }
-    }
-    // Select suggestion
-    if (keybindManager.getKeysForAction("select").includes(evt.key)) {
+
+    if (keybindManager.getKeysForAction("up").includes(evt.key)) {
       evt.preventDefault();
       evt.stopPropagation();
-      
-      if (this.lastSuggestions.length > 0) {
-        this.selectSuggestion(this.lastSuggestions[this.selectedIndex], evt);
-      }
-      
-      logger.debug("Select suggestion");
+      this.selectedIndex = Math.max(0, this.selectedIndex - 1);
+      this.updateGhostText();
+      this.updateMenuSelection();
       return;
     }
-    // Close menu
+
+    if (keybindManager.getKeysForAction("down").includes(evt.key)) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.selectedIndex = Math.min(
+        this.lastSuggestions.length - 1,
+        this.selectedIndex + 1
+      );
+      this.updateGhostText();
+      this.updateMenuSelection();
+      return;
+    }
+
+    if (
+      keybindManager.getKeysForAction("select").includes(evt.key) ||
+      evt.key === " "
+    ) {
+      if (evt.key === " " && this.lastSuggestions.length === 0) {
+        return;
+      }
+      evt.preventDefault();
+      evt.stopPropagation();
+      const suggestion = this.lastSuggestions[this.selectedIndex];
+      if (suggestion) {
+        this.selectSuggestion(suggestion, evt);
+      }
+      this.close();
+      return;
+    }
+
     if (keybindManager.getKeysForAction("close").includes(evt.key)) {
       evt.preventDefault();
       evt.stopPropagation();
-      // TODO: Implement hotkey logging
-      // logger.hotkey("Close menu", { key: evt.key });
       this.close();
       return;
+    }
+  }
+
+  private updateMenuSelection(): void {
+    if ((this as any).suggestions) {
+      (this as any).suggestions.setSelectedItem(this.selectedIndex, null);
+    }
+  }
+
+  private updateGhostText(): void {
+    if (!this.context) return;
+
+    const suggestion = this.lastSuggestions[this.selectedIndex];
+    const currentWord = this.currentWord;
+    const editor = this.context.editor as any;
+
+    if (suggestion && currentWord && suggestion.word.startsWith(currentWord)) {
+      const ghost = suggestion.word.substring(currentWord.length);
+      requestAnimationFrame(() => {
+        if (this.lastSuggestions.length > 0) {
+          setGhostText(editor.cm, ghost);
+        }
+      });
+    } else {
+      clearGhostText(editor.cm);
     }
   }
 
@@ -144,68 +207,72 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     editor: Editor,
     file: TFile | null
   ): EditorSuggestTriggerInfo | null {
-    this.selected = false;
     this.selectedIndex = 0;
-    if (!file) return null;
+    const editorView = (editor as any).cm as EditorView;
 
-    const line = editor.getLine(cursor.line);
-    let start = cursor.ch;
-    const end = cursor.ch;
-
-    // move start back to the beginning of the word
-    while (start > 0 && /[\w'-]/.test(line.charAt(start - 1))) {
-      start--;
+    if (!file) {
+      clearGhostText(editorView);
+      return null;
     }
-    const currentWord = line.slice(start, end);
-    
-    // Check for abbreviations first if enabled
+
+    const wordContext = getCurrentWord(editor, cursor);
+    if (!wordContext) {
+      clearGhostText(editorView);
+      return null;
+    }
+
+    const currentWord = wordContext.word;
+
     if (this.plugin.settings.abbreviationsEnabled && currentWord) {
-      const abbreviationResult = this.abbreviationManager.checkForAbbreviation(line, cursor.ch);
+      const line = editor.getLine(cursor.line);
+      const abbreviationResult = this.abbreviationManager.checkForAbbreviation(
+        line,
+        cursor.ch
+      );
       if (abbreviationResult) {
-        const { abbreviation, start: abbrevStart, end: abbrevEnd } = abbreviationResult;
-        
-        // Use the expandAbbreviation method which handles logging and notifications
+        const {
+          abbreviation,
+          start: abbrevStart,
+          end: abbrevEnd,
+        } = abbreviationResult;
         const expandedText = this.abbreviationManager.expandAbbreviation(
-          abbreviation.shortcut, 
+          abbreviation.shortcut,
           this.plugin.settings.abbreviationNotification
         );
-        
         if (expandedText) {
-          editor.replaceRange(expandedText + " ", 
-            { line: cursor.line, ch: abbrevStart }, 
+          editor.replaceRange(
+            expandedText + " ",
+            { line: cursor.line, ch: abbrevStart },
             { line: cursor.line, ch: abbrevEnd }
           );
           editor.setCursor({
             line: cursor.line,
-            ch: abbrevStart + expandedText.length + 1
+            ch: abbrevStart + expandedText.length + 1,
           });
         }
-        return null; // Don't show suggestions
+        clearGhostText(editorView);
+        return null;
       }
     }
-    
-    if (hasOnlyNumbersOrSpecialChars(currentWord)) {
+
+    if (!isWordEligible(currentWord, this.minChars, this.maxChars)) {
+      logger.debug(`[TyperSuggest] Word '${currentWord}' is not eligible.`);
+      clearGhostText(editorView);
       return null;
     }
 
-    if (
-      !currentWord ||
-      currentWord.length < this.minChars ||
-      currentWord.length > this.maxChars
-    ) {
-      return null;
-    }
-
-    // Skip if this is the same query we just processed (avoid duplicate triggers)
     if (
       currentWord.toLowerCase() === this.lastWord &&
       this.lastSuggestions.length === 0
     ) {
+      clearGhostText(editorView);
       return null;
     }
-    
-    // Save the word for cache and future comparisons
+
+    this.currentWord = currentWord;
     this.lastWord = currentWord.toLowerCase();
+    clearGhostText((editor as any).cm);
+
     if (
       this.cachedSuggestions[this.lastWord] &&
       this.cachedSuggestions[this.lastWord].length > 0
@@ -215,260 +282,133 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
         ...s,
         word: capitalizeWord(s.word, capitalizedIndexes),
       }));
-      this.selectedIndex = 0;
-      return {
-        start: { line: cursor.line, ch: start },
-        end: { line: cursor.line, ch: end },
-        query: currentWord,
-      };
     }
 
     return {
-      start: { line: cursor.line, ch: start },
-      end: { line: cursor.line, ch: end },
+      start: wordContext.start,
+      end: wordContext.end,
       query: currentWord,
     };
   }
 
   async getSuggestions(context: EditorSuggestContext): Promise<Suggestion[]> {
-    logger.msgpack("TyperSuggest: getSuggestions called", context.query);
-    return this.debouncedGetSuggestions(context);
+    logger.debug(
+      `[TyperSuggest] Getting suggestions for query: '${context.query}'`
+    );
+    if (!context.query || !context.query.trim()) {
+      logger.debug(
+        `[TyperSuggest] Query is empty or whitespace, returning no suggestions.`
+      );
+      return [];
+    }
+    const suggestions = await this.debouncedGetSuggestions(context);
+    this.lastSuggestions = suggestions;
+    this.selectedIndex = 0;
+    this.updateGhostText();
+    return suggestions;
   }
 
-  private async debouncedGetSuggestions(
+  private debouncedGetSuggestions(
     context: EditorSuggestContext
   ): Promise<Suggestion[]> {
-    logger.msgpack("TyperSuggest: debouncedGetSuggestions called", context.query);
-    
-    if (this.debounceTimeout) {
-      clearTimeout(this.debounceTimeout);
-    }
+    if (this.debounceTimeout) clearTimeout(this.debounceTimeout);
 
     return new Promise((resolve) => {
       this.debounceTimeout = setTimeout(async () => {
-        if (
-          context.query.length < this.minChars ||
-          context.query.length > this.maxChars ||
-          hasOnlyNumbersOrSpecialChars(context.query)
-        ) {
-          logger.msgpack("TyperSuggest: Query doesn't meet criteria", {
-            length: context.query.length,
-            minChars: this.minChars,
-            maxChars: this.maxChars,
-            hasOnlyNumbersOrSpecialChars: hasOnlyNumbersOrSpecialChars(context.query)
-          });
-          this.lastSuggestions = [];
-          this.selectedIndex = 0;
-          this.cachedSuggestions[context.query.toLowerCase()] = [];
-          resolve([]);
-          return;
-        }
-
-        const capitalizedIndexes = getCapitalizedIndexes(context.query);
-        const lowerCaseQuery = context.query.toLowerCase();
-
-        if (this.cachedSuggestions[lowerCaseQuery]) {
-          this.lastSuggestions = this.cachedSuggestions[lowerCaseQuery]
-            .filter(
-              (s: Suggestion) =>
-                s.word.toLowerCase() !== lowerCaseQuery.toLowerCase()
-            )
-            .map((s) => ({
-              ...s,
-              word: capitalizeWord(s.word, capitalizedIndexes),
-            }));
-          this.selectedIndex = 0;
-          resolve(this.lastSuggestions);
-          return;
-        }
-
-        try {
-          const response = await this.client.getCompletions(
-            lowerCaseQuery,
-            this.limit
+        const query = context.query.toLowerCase();
+        if (this.cachedSuggestions[query]) {
+          logger.debug(
+            `[TyperSuggest] Using cached suggestions for query: '${query}'`
           );
-
-          // Use the compatibility suggestions field
-          const rawSuggestions = response.suggestions || [];
-          
-          // filter current word
-          const suggestions = rawSuggestions
-            .filter(
-              (s: Suggestion) =>
-                s.word.toLowerCase() !== lowerCaseQuery.toLowerCase()
-            )
-            .map((s) => ({
-              ...s,
-              word: capitalizeWord(s.word, capitalizedIndexes),
-            }));
-
-          this.lastSuggestions = suggestions;
-          this.selectedIndex = 0;
-          this.cachedSuggestions[lowerCaseQuery] = rawSuggestions;
-
-          resolve(suggestions);
-        } catch (error) {
-          if (
-            error === "Duplicate request" ||
-            error === "Request timeout" ||
-            (error instanceof Error && error.message === "Request already in progress")
-          ) {
-            // Silent handling - just return cached suggestions for concurrent requests
-            resolve(this.lastSuggestions);
-          } else {
-            logger.error("Typer: Error fetching suggestions:", error);
-            this.lastSuggestions = [];
-            this.selectedIndex = 0;
-            this.cachedSuggestions[context.query.toLowerCase()] = [];
-            resolve([]);
-          }
+          return resolve(this.cachedSuggestions[query]);
         }
+
+        logger.debug(
+          `[TyperSuggest] Sending query to client: '${context.query}'`
+        );
+        const suggestions = await this.client.getSuggestions(context.query);
+        this.cachedSuggestions[query] = suggestions;
+        resolve(suggestions);
       }, this.debounceDelay);
     });
   }
 
   renderSuggestion(suggestion: Suggestion, el: HTMLElement): void {
-    // Add class for navigation selection
-    el.addClass('suggestion-item');
-    
-    // Add selected class if this is the currently selected suggestion
-    const suggestionIndex = this.lastSuggestions.indexOf(suggestion);
-    if (suggestionIndex === this.selectedIndex) {
-      el.addClass('is-selected');
-    }
-    // Log menu UI details without showing suggestion content
-    logger.menu("Rendering suggestion UI", { 
-      rank: suggestion.rank,
-      numberSelectionEnabled: this.numberSelectionEnabled,
-      showRankingOverride: this.showRankingOverride,
-      containerClasses: el.className,
-      currentLimit: this.limit
-    });
-    
+    el.addClass("suggestion-item");
     const container = el.createDiv({ cls: "typer-suggestion-container" });
-
-    // Log container styling details for render debugging
-    const computedStyle = window.getComputedStyle(container);
-    logger.render("Container element styling", {
-      className: container.className,
-      fontSize: computedStyle.fontSize,
-      fontWeight: computedStyle.fontWeight,
-      fontFamily: computedStyle.fontFamily,
-      padding: computedStyle.padding,
-      position: { x: el.offsetLeft, y: el.offsetTop },
-      size: { width: el.offsetWidth, height: el.offsetHeight }
-    });
-
     const displayRank = this.lastSuggestions.indexOf(suggestion) + 1;
     const rankEl = container.createSpan({ cls: "typer-suggestion-rank" });
-    
-    if (displayRank > 0 && (this.numberSelectionEnabled || this.showRankingOverride)) {
+    if (
+      displayRank > 0 &&
+      (this.numberSelectionEnabled || this.showRankingOverride)
+    ) {
       rankEl.setText(`${displayRank}`);
-      
-      // Log rank element styling
-      const rankStyle = window.getComputedStyle(rankEl);
-      logger.menu("Rank element styling", {
-        displayed: true,
-        rank: displayRank,
-        backgroundColor: rankStyle.backgroundColor,
-        color: rankStyle.color,
-        fontSize: rankStyle.fontSize,
-        width: rankStyle.width,
-        height: rankStyle.height
-      });
     } else {
       rankEl.style.display = "none";
-      logger.menu("Rank element hidden", { 
-        numberSelection: this.numberSelectionEnabled, 
-        showOverride: this.showRankingOverride 
-      });
     }
 
     const contentEl = container.createSpan({ cls: "typer-suggestion-content" });
-    
-    // Log content styling without showing actual content
-    const contentStyle = window.getComputedStyle(contentEl);
-    logger.render("Content element styling", {
-      className: contentEl.className,
-      textTransform: contentStyle.textTransform,
-      color: contentStyle.color,
-      fontWeight: contentStyle.fontWeight
-    });
-    
-    // Highlight prefix with muted colors
     if (this.context && this.context.query) {
       const query = this.context.query;
       const word = suggestion.word;
-      const queryLower = query.toLowerCase();
-      const wordLower = word.toLowerCase();
-      
-      if (wordLower.startsWith(queryLower)) {
-        // Split the word into prefix (matching query) and suffix (rest)
-        const prefixLength = query.length;
-        const prefix = word.substring(0, prefixLength);
-        const suffix = word.substring(prefixLength);
-        
-        // Create spans for prefix and suffix with different styling
-        const prefixSpan = contentEl.createSpan({ cls: "suggestion-prefix" });
-        prefixSpan.setText(prefix);
-        
-        const suffixSpan = contentEl.createSpan({ cls: "suggestion-suffix" });
-        suffixSpan.setText(suffix);
-        
-        // Log prefix/suffix styling
-        const prefixStyle = window.getComputedStyle(prefixSpan);
-        const suffixStyle = window.getComputedStyle(suffixSpan);
-        logger.render("Prefix/suffix styling", {
-          prefixColor: prefixStyle.color,
-          suffixColor: suffixStyle.color,
-          suffixFontWeight: suffixStyle.fontWeight,
-          prefixLength: prefixLength,
-          totalLength: word.length
-        });
+      if (word.toLowerCase().startsWith(query.toLowerCase())) {
+        const prefix = word.substring(0, query.length);
+        const suffix = word.substring(query.length);
+        contentEl.createSpan({ cls: "suggestion-prefix", text: prefix });
+        contentEl.createSpan({ cls: "suggestion-suffix", text: suffix });
       } else {
         contentEl.setText(suggestion.word);
       }
     } else {
-      // Fallback: if no context, just show the word normally
       contentEl.setText(suggestion.word);
     }
   }
 
   selectSuggestion(
     suggestion: Suggestion,
-    evt: MouseEvent | KeyboardEvent
+    evt: KeyboardEvent | MouseEvent
   ): void {
     if (!this.context) return;
+    const editor = this.context.editor as any;
+    clearGhostText(editor.cm);
 
-    const { editor, start, end } = this.context;
-    const currentWord = editor.getRange(start, end);
+    const insertSpace = evt instanceof KeyboardEvent && evt.key === " ";
+    const replacement = suggestion.word + (insertSpace ? " " : "");
+    this.originalWordForBackspace = this.currentWord;
+    this.lastCommittedWord = suggestion.word;
 
-    if (currentWord === suggestion.word) {
-      this.selected = true;
-      this.lastWord = "";
-      return;
-    }
-
-    if (evt instanceof KeyboardEvent && !/\d/.test(currentWord)) {
-      const key = evt.key;
-      if (/^[1-9]$/.test(key)) {
-        const index = parseInt(key) - 1;
-        if (index < this.lastSuggestions.length) {
-          evt.preventDefault();
-          suggestion = this.lastSuggestions[index];
-        }
-      }
-    }
-
-    // replace and add a space if enabled
-    const insertSpace = keybindManager.insertSpace;
-    editor.replaceRange(suggestion.word + (insertSpace ? " " : ""), start, end);
+    editor.replaceRange(replacement, this.context.start, this.context.end);
+    this.lastCommittedPosition = {
+      line: this.context.start.line,
+      ch: this.context.start.ch + suggestion.word.length,
+    };
     editor.setCursor({
-      line: end.line,
-      ch: start.ch + suggestion.word.length + (insertSpace ? 1 : 0),
+      ...this.lastCommittedPosition,
+      ch: this.lastCommittedPosition.ch + (insertSpace ? 1 : 0),
     });
 
-    this.selected = true;
     this.lastWord = "";
+  }
+
+  private restoreFromCommittedWord(): void {
+    if (!this.context || !this.lastCommittedWord || !this.lastCommittedPosition)
+      return;
+    const editor = this.context.editor;
+    const from = {
+      line: this.lastCommittedPosition.line,
+      ch: this.lastCommittedPosition.ch - this.lastCommittedWord.length,
+    };
+    editor.replaceRange(
+      this.originalWordForBackspace,
+      from,
+      this.lastCommittedPosition
+    );
+    editor.setCursor({
+      line: from.line,
+      ch: from.ch + this.originalWordForBackspace.length,
+    });
+    this.lastCommittedWord = "";
+    this.lastCommittedPosition = null;
+    this.originalWordForBackspace = "";
   }
 }

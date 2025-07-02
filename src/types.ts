@@ -8,9 +8,14 @@ export interface TyperPluginSettings {
   fontSize: "smallest" | "smaller" | "small" | "editor" | "ui-small" | "ui-medium" | "ui-larger";
   fontWeight: "thin" | "extralight" | "light" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black";
   debugMode: boolean;
-  dictionarySize: number; // Number of chunks to load
+  dictionarySize: number;
   abbreviationsEnabled: boolean;
   abbreviationNotification: boolean;
+  autoInsertion: boolean;
+  autoInsertionCommitMode: "space-commits" | "enter-only";
+  smartBackspace: boolean;
+  minPrefix: number;
+  maxLimit: number;
   accessibility: {
     boldSuffix: boolean;
     uppercaseSuggestions: boolean;
@@ -43,6 +48,7 @@ export interface Suggestion {
 
 // MessagePack types
 export interface CompletionRequest {
+  id?: string;
   p: string; // prefix
   l?: number; // limit
 }
@@ -53,6 +59,7 @@ export interface CompletionSuggestion {
 }
 
 export interface CompletionResponse {
+  id: string;
   s: CompletionSuggestion[]; // suggestions
   c: number; // count
   t: number; // time_taken (microseconds)
@@ -60,11 +67,13 @@ export interface CompletionResponse {
 }
 
 export interface CompletionError {
+  id: string;
   e: string; // message
   c: number; // code
 }
 
 export interface ConfigResponse {
+  id: string;
   status: string;
   error?: string;
   available_chunks?: number;
@@ -72,6 +81,7 @@ export interface ConfigResponse {
 
 // Dictionary management types
 export interface DictionaryRequest {
+  id?: string;
   action: "get_info" | "set_size" | "get_options";
   chunk_count?: number;
 }
@@ -83,6 +93,7 @@ export interface DictionarySizeOption {
 }
 
 export interface DictionaryResponse {
+  id: string;
   status: string;
   error?: string;
   current_chunks?: number;

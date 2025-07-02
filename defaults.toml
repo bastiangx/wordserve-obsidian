@@ -14,6 +14,12 @@ numberSelection = true
 showRankingOverride = false
 # Compact mode for tighter UI
 compactMode = true
+# Auto-insertion of suggestions while typing (on by default)
+autoInsertion = true
+# How auto-inserted suggestions are committed: "space-commits" or "enter-only"
+autoInsertionCommitMode = "space-commits"
+# Restore original word when pressing backspace after auto insertion
+smartBackspace = true
 # Font size for suggestions
 fontSize = "editor"
 # Font weight for suggestions
@@ -24,6 +30,10 @@ debugMode = false
 dictionarySize = 5
 # Enable abbreviations/shortcuts feature
 abbreviationsEnabled = true
+# Minimum prefix length for server-side completion
+minPrefix = 2
+# Maximum number of suggestions from server
+maxLimit = 50
 
 [abbreviations]
 # Maximum length for shortcuts

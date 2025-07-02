@@ -1,6 +1,6 @@
 [server]
-max_limit = 110
-min_prefix = 4
+max_limit = 180
+min_prefix = 1
 max_prefix = 60
 enable_filter = true
 

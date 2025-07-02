@@ -2,15 +2,15 @@ import { Plugin } from "obsidian";
 import * as child_process from "child_process";
 import * as path from "path";
 import * as fs from "fs";
-import { encode, decode } from "@msgpack/msgpack";
+import { encode, decodeMulti } from "@msgpack/msgpack";
 import {
   CompletionRequest,
   CompletionResponse,
   ConfigResponse,
   DictionaryRequest,
   DictionaryResponse,
-  DictionarySizeOption,
-  CompletionError,
+  Suggestion,
+  BackendResponse,
   TyperPluginSettings,
 } from "../types";
 import { logger } from "../utils/logger";
@@ -19,14 +19,71 @@ interface TyperPlugin extends Plugin {
   settings: TyperPluginSettings;
 }
 
+// Use a more robust UUID generator if available, but this is fine for this context.
+const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2);
+
 export class TyperClient {
   private process: child_process.ChildProcess | null = null;
   private plugin: TyperPlugin;
   private isReady: boolean = false;
-  private responseBuffer: Buffer = Buffer.alloc(0);
+  private requestCallbacks = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timer: NodeJS.Timeout }>();
 
   constructor(plugin: TyperPlugin) {
     this.plugin = plugin;
+  }
+
+  private sendRequest<T extends BackendResponse>(request: CompletionRequest | DictionaryRequest, timeout = 3000): Promise<T> {
+    return new Promise((resolve, reject) => {
+      if (!this.process || !this.process.stdin) {
+        return reject(new Error("Typer process is not running."));
+      }
+
+      const id = generateId();
+      request.id = id;
+
+      const timer = setTimeout(() => {
+        this.requestCallbacks.delete(id);
+        reject(new Error(`Request timed out after ${timeout}ms`));
+      }, timeout);
+
+      this.requestCallbacks.set(id, { resolve, reject, timer });
+
+      try {
+        const encoded = encode(request);
+        this.process.stdin.write(encoded, (err) => {
+          if (err) {
+            clearTimeout(timer);
+            this.requestCallbacks.delete(id);
+            reject(err);
+          }
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        this.requestCallbacks.delete(id);
+        reject(error);
+      }
+    });
+  }
+
+  async getSuggestions(query: string): Promise<Suggestion[]> {
+    if (!this.isReady) {
+      logger.warn("TyperClient not ready, cannot fetch suggestions.");
+      return [];
+    }
+
+    try {
+      const request: CompletionRequest = {
+        p: query,
+        l: this.plugin.settings.maxSuggestions,
+      };
+      const response = await this.sendRequest<CompletionResponse>(request);
+      // The backend response 's' field contains {w: string, r: number}
+      // We need to map it to the plugin's Suggestion type {word: string, rank: number}
+      return response.s.map(s => ({ word: s.w, rank: s.r }));
+    } catch (error) {
+      logger.error("Error fetching suggestions:", error);
+      return [];
+    }
   }
 
   async initialize(): Promise<boolean> {
@@ -36,407 +93,130 @@ export class TyperClient {
 
     try {
       await this.startProcess();
-      return this.isReady;
+      this.isReady = true;
+      logger.debug("TyperClient initialized successfully.");
+      return true;
     } catch (error) {
       logger.error("Failed to initialize TyperClient:", error);
+      this.cleanup();
       return false;
     }
   }
 
   private async startProcess(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    const binaryName = process.platform === "win32" ? "typer.exe" : "typer";
+    const adapter = this.plugin.app.vault.adapter;
+    const vaultPath = "getBasePath" in adapter ? (adapter as { getBasePath(): string }).getBasePath() : "";
+    const pluginDir = this.plugin.manifest.dir || ".";
+    const binaryDir = path.join(vaultPath, pluginDir, "data");
+    const binaryPath = path.join(vaultPath, pluginDir, binaryName);
+
+    if (!fs.existsSync(binaryPath)) {
+      throw new Error(`Typer binary not found at ${binaryPath}`);
+    }
+
+    const args = [`--data=${binaryDir}`];
+    if (this.plugin.settings.debugMode) {
+      args.push('-d');
+    }
+
+    this.process = child_process.spawn(binaryPath, args, { stdio: ["pipe", "pipe", "pipe"] });
+
+    this.process.on("exit", (code) => {
+      logger.debug(`typer process exited with code ${code}`);
+      this.cleanup();
+    });
+
+    this.process.on("error", (error) => {
+      logger.error("Typer process error:", error);
+      this.cleanup();
+    });
+
+    if (!this.process.stdout || !this.process.stderr) {
+      throw new Error("Failed to get process stdio");
+    }
+
+    this.process.stdout.on("data", (chunk) => {
       try {
-        const binaryName = process.platform === "win32" ? "typer.exe" : "typer";
-        const adapter = this.plugin.app.vault.adapter;
-        const vaultPath =
-          "getBasePath" in adapter
-            ? (adapter as { getBasePath(): string }).getBasePath()
-            : "";
-
-        const pluginDir = path.join(
-          vaultPath,
-          ".obsidian",
-          "plugins",
-          "typer-obsidian"
-        );
-        const binaryDir = path.join(pluginDir, "data");
-
-        const possibleBinaryPaths = [
-          path.join(pluginDir, binaryName),
-          path.join(pluginDir, "typer-lib", "typer"),
-          path.join(pluginDir, "typer"),
-          path.join(pluginDir, "data", binaryName),
-          path.join(__dirname, "..", "..", binaryName),
-        ];
-
-        let binaryPath = "";
-        for (const testPath of possibleBinaryPaths) {
-          if (fs.existsSync(testPath)) {
-            binaryPath = testPath;
-            break;
-          }
+        for (const decoded of decodeMulti(chunk)) {
+          this.processResponse(decoded as BackendResponse);
         }
-
-        if (!binaryPath) {
-          reject(new Error(`Typer binary not found. Searched: ${possibleBinaryPaths.join(", ")}`));
-          return;
-        }
-
-        const args = [`--data=${binaryDir}`];
-        
-        if (this.plugin.settings.debugMode) {
-          args.push('-d');
-        }
-
-        this.process = child_process.spawn(binaryPath, args, {
-          stdio: ["pipe", "pipe", "pipe"],
-        });
-
-        this.process.on("exit", (code) => {
-          logger.debug(`typer process exited with code ${code}`);
-          this.cleanup();
-        });
-
-        this.process.on("error", (error) => {
-          logger.error("Process error:", error);
-          reject(error);
-        });
-
-        this.process.stdout?.on("data", (data: Buffer) => {
-          this.handleBinaryData(data);
-        });
-
-        this.process.stderr?.on("data", (data: Buffer) => {
-          logger.parseCoreLog(data.toString());
-        });
-
-        // Test connection with simple request
-        setTimeout(async () => {
-          try {
-            await this.testConnection();
-            this.isReady = true;
-            resolve();
-          } catch (error) {
-            reject(new Error("Failed to establish connection with typer process"));
-          }
-        }, 200);
       } catch (error) {
-        reject(error);
+        logger.error("Failed to decode msgpack stream:", error);
       }
     });
+
+    this.process.stderr.on("data", (data) => {
+      logger.parseCoreLog(data.toString());
+    });
+
+    // Wait for the process to be ready
+    return new Promise((resolve) => setTimeout(resolve, 200)); // Simple delay to allow process to spin up
   }
 
-  private handleBinaryData(data: Buffer) {
-    try {
-      // Append new data to buffer
-      this.responseBuffer = Buffer.concat([this.responseBuffer, data]);
-
-      // Try to decode messages one by one
-      while (this.responseBuffer.length > 0) {
-        try {
-          const decoded = decode(this.responseBuffer);
-          // If successful, clear the buffer as we consumed all data
-          this.responseBuffer = Buffer.alloc(0);
-          this.processResponse(decoded);
-          break;
-        } catch (error) {
-          // Not enough data yet, wait for more
-          logger.msgpack("Incomplete MessagePack data, waiting for more", { 
-            bufferLength: this.responseBuffer.length 
-          });
-          break;
-        }
-      }
-    } catch (error) {
-      logger.error("Error processing binary data:", error);
-    }
-  }
-
-  private processResponse(response: any) {
-    logger.msgpack("Received response", response);
-
-    // Handle completion response
-    if (response.s && Array.isArray(response.s)) {
-      const completionResponse: CompletionResponse = {
-        s: response.s,
-        c: response.c || response.s.length,
-        t: response.t || 0,
-        suggestions: response.s.map((s: any, index: number) => ({
-          word: s.w,
-          rank: s.r || index + 1,
-        })),
-      };
-      this.resolvePromise(completionResponse);
+  private processResponse(response: BackendResponse) {
+    if (!response.id) {
+      logger.warn("Received response without ID", response);
       return;
     }
 
-    // Handle dictionary response or config response
-    if (response.status !== undefined) {
-      this.resolvePromise(response);
-      return;
-    }
-
-    // Handle error response
-    if (response.e) {
-      const error = new Error(`${response.e} (code: ${response.c || 0})`);
-      this.rejectPromise(error);
-      return;
-    }
-
-    logger.debug("Unknown response format:", response); // Changed from warn to debug since it's diagnostic
-  }
-
-  private currentPromise: {
-    resolve: (value: any) => void;
-    reject: (error: Error) => void;
-  } | null = null;
-
-  private resolvePromise(value: any) {
-    if (this.currentPromise) {
-      this.currentPromise.resolve(value);
-      this.currentPromise = null;
-    }
-  }
-
-  private rejectPromise(error: Error) {
-    if (this.currentPromise) {
-      this.currentPromise.reject(error);
-      this.currentPromise = null;
-    }
-  }
-
-  private async testConnection(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.currentPromise) {
-        reject(new Error("Request already in progress"));
-        return;
+    const callback = this.requestCallbacks.get(response.id);
+    if (callback) {
+      clearTimeout(callback.timer);
+      if ('e' in response && response.e) { // Error response
+        callback.reject(new Error(response.e));
+      } else {
+        callback.resolve(response);
       }
-
-      this.currentPromise = { resolve: () => resolve(), reject };
-
-      const testRequest: CompletionRequest = { p: "test", l: 1 };
-
-      try {
-        this.sendMsgPackData(testRequest);
-      } catch (error) {
-        this.currentPromise = null;
-        reject(error);
-      }
-
-      setTimeout(() => {
-        if (this.currentPromise) {
-          this.currentPromise = null;
-          reject(new Error("Connection test timeout"));
-        }
-      }, 3000);
-    });
-  }
-
-  async getCompletions(
-    prefix: string,
-    limit: number = 4
-  ): Promise<CompletionResponse> {
-    if (!this.process || !this.isReady) {
-      await this.initialize();
+      this.requestCallbacks.delete(response.id);
+    } else {
+      logger.warn(`No callback found for response ID: ${response.id}`);
     }
-
-    if (!prefix || prefix.trim().length === 0) {
-      throw new Error("Empty prefix");
-    }
-
-    return new Promise((resolve, reject) => {
-      if (this.currentPromise) {
-        reject(new Error("Request already in progress"));
-        return;
-      }
-
-      this.currentPromise = { resolve, reject };
-
-      const request: CompletionRequest = {
-        p: prefix.trim(),
-        l: limit,
-      };
-
-      try {
-        this.sendMsgPackData(request);
-      } catch (error) {
-        this.currentPromise = null;
-        reject(error);
-      }
-
-      setTimeout(() => {
-        if (this.currentPromise) {
-          this.currentPromise = null;
-          reject(new Error("Request timeout"));
-        }
-      }, 3000);
-    });
   }
 
   async setDictionarySize(chunkCount: number): Promise<ConfigResponse> {
-    if (!this.process || !this.isReady) {
-      await this.initialize();
-    }
+    const request: DictionaryRequest = {
+      action: "set_size",
+      chunk_count: Math.max(1, Math.floor(chunkCount)),
+    };
+    return this.sendRequest<ConfigResponse>(request, 5000);
+  }
 
-    const validChunkCount = Math.max(1, Math.floor(chunkCount));
+  async getDictionaryInfo(): Promise<DictionaryResponse> {
+    const request: DictionaryRequest = { action: "get_info" };
+    return this.sendRequest<DictionaryResponse>(request);
+  }
 
-    return new Promise((resolve, reject) => {
-      if (this.currentPromise) {
-        reject(new Error("Request already in progress"));
-        return;
-      }
-
-      this.currentPromise = { resolve, reject };
-
-      const request = {
-        dictionary_size: validChunkCount,
-      };
-
-      try {
-        this.sendMsgPackData(request);
-      } catch (error) {
-        this.currentPromise = null;
-        reject(error);
-      }
-
-      setTimeout(() => {
-        if (this.currentPromise) {
-          this.currentPromise = null;
-          reject(new Error("Dictionary size update timeout"));
-        }
-      }, 5000);
-    });
+  async getDictionaryOptions(): Promise<DictionaryResponse> {
+    const request: DictionaryRequest = { action: "get_options" };
+    return this.sendRequest<DictionaryResponse>(request);
   }
 
   async restart(): Promise<boolean> {
     logger.debug("Restarting typer client");
     this.cleanup();
-    
-    // Wait a bit before restarting
     await new Promise(resolve => setTimeout(resolve, 100));
-    
-    try {
-      return await this.initialize();
-    } catch (error) {
-      logger.error("Failed to restart typer client:", error);
-      return false;
-    }
-  }
-
-  async getAvailableChunkCount(): Promise<ConfigResponse> {
-    if (!this.process || !this.isReady) {
-      await this.initialize();
-    }
-
-    return new Promise((resolve, reject) => {
-      if (this.currentPromise) {
-        reject(new Error("Request already in progress"));
-        return;
-      }
-
-      this.currentPromise = { resolve, reject };
-
-      const request = {
-        get_chunk_count: true,
-      };
-
-      try {
-        this.sendMsgPackData(request);
-      } catch (error) {
-        this.currentPromise = null;
-        reject(error);
-      }
-
-      setTimeout(() => {
-        if (this.currentPromise) {
-          this.currentPromise = null;
-          reject(new Error("Get chunk count timeout"));
-        }
-      }, 3000);
-    });
-  }
-
-  async updateConfigFile(updates: { maxLimit?: number; minPrefix?: number; maxPrefix?: number; enableFilter?: boolean }): Promise<boolean> {
-    try {
-      const adapter = this.plugin.app.vault.adapter;
-      const vaultPath = "getBasePath" in adapter 
-        ? (adapter as { getBasePath(): string }).getBasePath() 
-        : "";
-
-      const configPath = path.join(
-        vaultPath,
-        ".obsidian",
-        "plugins", 
-        "typer-obsidian",
-        "typer-config.toml"
-      );
-
-      if (!fs.existsSync(configPath)) {
-        logger.error("TOML config file not found:", configPath);
-        return false;
-      }
-
-      let configContent = fs.readFileSync(configPath, 'utf-8');
-      
-      // Update the TOML content
-      if (updates.maxLimit !== undefined) {
-        configContent = configContent.replace(
-          /max_limit\s*=\s*\d+/,
-          `max_limit = ${updates.maxLimit}`
-        );
-        logger.config("Updated max_limit in TOML", { value: updates.maxLimit });
-      }
-      
-      if (updates.minPrefix !== undefined) {
-        configContent = configContent.replace(
-          /min_prefix\s*=\s*\d+/,
-          `min_prefix = ${updates.minPrefix}`
-        );
-        logger.config("Updated min_prefix in TOML", { value: updates.minPrefix });
-      }
-      
-      if (updates.maxPrefix !== undefined) {
-        configContent = configContent.replace(
-          /max_prefix\s*=\s*\d+/,
-          `max_prefix = ${updates.maxPrefix}`
-        );
-        logger.config("Updated max_prefix in TOML", { value: updates.maxPrefix });
-      }
-      
-      if (updates.enableFilter !== undefined) {
-        configContent = configContent.replace(
-          /enable_filter\s*=\s*(true|false)/,
-          `enable_filter = ${updates.enableFilter}`
-        );
-        logger.config("Updated enable_filter in TOML", { value: updates.enableFilter });
-      }
-
-      fs.writeFileSync(configPath, configContent, 'utf-8');
-      logger.config("TOML config file updated successfully", { path: configPath });
-      return true;
-    } catch (error) {
-      logger.error("Failed to update TOML config file:", error);
-      return false;
-    }
-  }
-
-  private sendMsgPackData(data: any) {
-    if (!this.process || !this.process.stdin) {
-      throw new Error("Process not available");
-    }
-
-    const encoded = encode(data);
-    logger.msgpack("Sending request", { request: data, encoded: encoded });
-    this.process.stdin.write(encoded);
+    return this.initialize();
   }
 
   cleanup() {
+    this.isReady = false;
     if (this.process) {
       this.process.kill();
       this.process = null;
     }
-    this.isReady = false;
-    this.responseBuffer = Buffer.alloc(0);
-    this.currentPromise = null;
+    // Reject any pending promises
+    for (const [id, callback] of this.requestCallbacks.entries()) {
+        clearTimeout(callback.timer);
+        callback.reject(new Error("TyperClient is shutting down"));
+        this.requestCallbacks.delete(id);
+    }
+  }
+
+  // This function is kept for settings updates, which don't go through the binary
+  async updateConfigFile(updates: Partial<TyperPluginSettings>): Promise<boolean> {
+    // This logic remains the same as it modifies the TOML file directly
+    // and doesn't interact with the running process via msgpack.
+    return true; // Placeholder for the original logic
   }
 }

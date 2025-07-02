@@ -1,13 +1,11 @@
 import { App, Notice, PluginSettingTab, Setting, Modal } from "obsidian";
 import TyperPlugin from "../../main";
 import { CONFIG } from "../core/config";
-import { TyperPreview } from "../ui/preview";
 import { AbbreviationDialog } from "../ui/abbrv-dialog";
 import { logger } from "../utils/logger";
 
 export class TyperSettingTab extends PluginSettingTab {
   plugin: TyperPlugin;
-  private preview: TyperPreview | null = null;
 
   constructor(app: App, plugin: TyperPlugin) {
     super(app, plugin);
@@ -22,7 +20,28 @@ export class TyperSettingTab extends PluginSettingTab {
     this.renderSettings(containerEl);
   }
 
+  hide(): void {
+    super.hide();
+  }
+
   private async renderSettings(containerEl: HTMLElement): Promise<void> {
+
+    // Behavior Section
+    new Setting(containerEl)
+      .setName("Behavior")
+      .setHeading();
+
+    new Setting(containerEl)
+      .setName("Smart backspace")
+      .setDesc("Restore the original word when pressing backspace after a suggestion is accepted")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.smartBackspace)
+          .onChange(async (value) => {
+            this.plugin.settings.smartBackspace = value;
+            await this.plugin.saveSettings();
+          })
+      );
 
     new Setting(containerEl)
       .setName("Minimum word length")
@@ -40,7 +59,6 @@ export class TyperSettingTab extends PluginSettingTab {
             const oldValue = this.plugin.settings.minWordLength;
             this.plugin.settings.minWordLength = value;
             this.plugin.suggestor.minChars = value;
-            this.updatePreview();
             
             // Update TOML config file for core
             const success = await this.plugin.client.updateConfigFile({
@@ -106,7 +124,6 @@ export class TyperSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.numberSelection = value;
             this.plugin.suggestor.numberSelectionEnabled = value;
-            this.updatePreview();
             await this.plugin.saveSettings();
           })
       );
@@ -122,7 +139,6 @@ export class TyperSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.showRankingOverride = value;
             this.plugin.suggestor.showRankingOverride = value;
-            this.updatePreview();
             await this.plugin.saveSettings();
           })
       );
@@ -153,7 +169,6 @@ export class TyperSettingTab extends PluginSettingTab {
           }
           this.plugin.settings.debounceTime = numValue;
           this.plugin.suggestor.debounceDelay = numValue;
-          this.updatePreview();
           await this.plugin.saveSettings();
           text.setValue(numValue.toString());
         });
@@ -246,7 +261,7 @@ export class TyperSettingTab extends PluginSettingTab {
               | "ui-larger"
           ) => {
             this.plugin.settings.fontSize = value;
-            this.updateBodyClasses();
+            this.loadFontSizeTheme();
             await this.plugin.saveSettings();
           }
         );
@@ -280,7 +295,7 @@ export class TyperSettingTab extends PluginSettingTab {
               | "black"
           ) => {
             this.plugin.settings.fontWeight = value;
-            this.updateBodyClasses();
+            this.loadFontWeightTheme();
             await this.plugin.saveSettings();
           }
         );
@@ -336,7 +351,6 @@ export class TyperSettingTab extends PluginSettingTab {
           async (value: "normal" | "muted" | "faint" | "accent") => {
             this.plugin.settings.accessibility.prefixColorIntensity = value;
             this.updateBodyClasses();
-            this.updatePreview();
             await this.plugin.saveSettings();
           }
         );
@@ -378,52 +392,6 @@ export class TyperSettingTab extends PluginSettingTab {
       );
 
     this.createDebugEventsSection(containerEl);
-
-    // Theme & Colors Section with Live Preview
-    containerEl.createEl("h3", { text: "Theme & Colors" });
-
-    const previewContainer = containerEl.createDiv({
-      cls: "typer-theme-section",
-    });
-    this.createLivePreview(previewContainer);
-  }
-
-  private createLivePreview(containerEl: HTMLElement): void {
-    // Clean up existing preview
-    if (this.preview) {
-      this.preview.unload();
-      this.preview = null;
-    }
-
-    // Create new preview instance
-    this.preview = new TyperPreview(
-      this.app,
-      this.plugin,
-      this.plugin.client,
-      containerEl
-    );
-
-    // Load the preview
-    this.preview.load();
-  }
-
-  private updatePreview(): void {
-    if (this.preview) {
-      this.preview.updateSettings();
-    }
-  }
-
-  private destroyPreview(): void {
-    if (this.preview) {
-      this.preview.unload();
-      this.preview = null;
-    }
-  }
-
-  // Override the hide method to clean up preview when settings tab is closed
-  hide(): void {
-    this.destroyPreview();
-    super.hide();
   }
 
   private updateBodyClasses(): void {
@@ -478,9 +446,6 @@ export class TyperSettingTab extends PluginSettingTab {
     body.addClass(
       `typer-prefix-${this.plugin.settings.accessibility.prefixColorIntensity}`
     );
-
-    // Update preview to reflect changes
-    this.updatePreview();
   }
 
   private createDebugEventsSection(containerEl: HTMLElement): void {
@@ -685,7 +650,7 @@ export class TyperSettingTab extends PluginSettingTab {
   private async getAvailableDictionaryFiles(): Promise<number> {
     try {
       // Try to get info from the client about available chunks
-      const response = await this.plugin.client.getAvailableChunkCount();
+      const response = await this.plugin.client.getDictionaryInfo();
       if (response && response.status === "ok" && response.available_chunks) {
         return response.available_chunks;
       }
@@ -694,6 +659,26 @@ export class TyperSettingTab extends PluginSettingTab {
       logger.warn("Could not detect dictionary files, using default", error);
       return 7;
     }
+  }
+
+  private loadFontSizeTheme(): void {
+    document.body.setAttribute("data-typer-font-size", this.plugin.settings.fontSize);
+  }
+
+  private onFontSizeChanged(value: string): void {
+    this.plugin.settings.fontSize = value as any;
+    this.loadFontSizeTheme();
+    this.plugin.saveSettings();
+  }
+
+  private loadFontWeightTheme(): void {
+    document.body.setAttribute("data-typer-font-weight", this.plugin.settings.fontWeight);
+  }
+
+  private onFontWeightChanged(value: string): void {
+    this.plugin.settings.fontWeight = value as any;
+    this.loadFontWeightTheme();
+    this.plugin.saveSettings();
   }
 }
 

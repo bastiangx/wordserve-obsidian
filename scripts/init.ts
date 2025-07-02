@@ -16,6 +16,21 @@ if (!("compactMode" in config.plugin)) {
   config.plugin.compactMode = true;
 }
 
+// Ensure autoInsertion is present in config.plugin
+if (!("autoInsertion" in config.plugin)) {
+  config.plugin.autoInsertion = false;
+}
+
+// Ensure autoInsertionCommitMode is present in config.plugin
+if (!("autoInsertionCommitMode" in config.plugin)) {
+  config.plugin.autoInsertionCommitMode = "space-commits";
+}
+
+// Ensure smartBackspace is present in config.plugin
+if (!("smartBackspace" in config.plugin)) {
+  config.plugin.smartBackspace = true;
+}
+
 // Ensure fontSize is present in config.plugin
 if (!("fontSize" in config.plugin)) {
   config.plugin.fontSize = "editor";
@@ -70,6 +85,16 @@ if (!("abbreviationNotification" in config.plugin)) {
   config.plugin.abbreviationNotification = false;
 }
 
+// Ensure minPrefix is present in config.plugin
+if (!("minPrefix" in config.plugin)) {
+  config.plugin.minPrefix = 2;
+}
+
+// Ensure maxLimit is present in config.plugin
+if (!("maxLimit" in config.plugin)) {
+  config.plugin.maxLimit = 50;
+}
+
 const configOut = `// THIS FILE IS AUTO‐GENERATED — DO NOT EDIT
 import { TyperPluginSettings } from "../types";
 
@@ -80,12 +105,17 @@ export interface PluginConfig {
   numberSelection: boolean;
   showRankingOverride: boolean;
   compactMode: boolean;
+  autoInsertion: boolean;
+  autoInsertionCommitMode: "space-commits" | "enter-only";
+  smartBackspace: boolean;
   fontSize: "smallest" | "smaller" | "small" | "editor" | "ui-small" | "ui-medium" | "ui-larger";
   fontWeight: "thin" | "extralight" | "light" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black";
   debugMode: boolean;
   dictionarySize: number;
   abbreviationsEnabled: boolean;
   abbreviationNotification: boolean;
+  minPrefix: number;
+  maxLimit: number;
 }
 
 export interface InternalsConfig {
@@ -167,6 +197,9 @@ export const DEFAULT_SETTINGS: TyperPluginSettings = {
   numberSelection: CONFIG.plugin.numberSelection,
   showRankingOverride: CONFIG.plugin.showRankingOverride,
   compactMode: CONFIG.plugin.compactMode,
+  autoInsertion: CONFIG.plugin.autoInsertion,
+  autoInsertionCommitMode: CONFIG.plugin.autoInsertionCommitMode,
+  smartBackspace: CONFIG.plugin.smartBackspace,
   fontSize: CONFIG.plugin.fontSize,
   fontWeight: CONFIG.plugin.fontWeight,
   accessibility: CONFIG.accessibility,
@@ -175,6 +208,8 @@ export const DEFAULT_SETTINGS: TyperPluginSettings = {
   dictionarySize: CONFIG.plugin.dictionarySize,
   abbreviationsEnabled: CONFIG.plugin.abbreviationsEnabled,
   abbreviationNotification: CONFIG.plugin.abbreviationNotification,
+  minPrefix: CONFIG.plugin.minPrefix,
+  maxLimit: CONFIG.plugin.maxLimit,
 };
 `;
 fs.writeFileSync(path.resolve(__dirname, "../src/core/config.ts"), configOut);
@@ -281,6 +316,12 @@ body.typer-prefix-faint .suggestion-prefix {
 body.typer-prefix-accent .suggestion-prefix {
   color: var(--text-accent);
 }
+
+.cm-ghost-text {
+  color: var(--text-faint);
+  opacity: 0.5;
+}
+
 
 /* Font Size Options */
 body.typer-font-smallest .typer-suggestion-container {
@@ -637,6 +678,52 @@ body.typer-compact-mode .typer-preview-suggestions {
   color: var(--text-muted) !important;
   font-style: italic !important;
   padding: 40px 20px !important;
+}
+
+/* Ghost Text Styling */
+.typer-ghost-text {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1000;
+  font-family: var(--font-text), var(--font-text-theme), var(--font-monospace), var(--font-monospace-theme), sans-serif;
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--text-faint);
+  opacity: 0.7;
+  display: inline-block !important;
+  visibility: visible !important;
+  white-space: pre;
+  height: auto !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Bold ghost text when bold suffix is enabled */
+body.typer-bold-suffix .typer-ghost-text {
+  font-weight: bold;
+}
+
+/* Ghost text color based on prefix color settings */
+body.typer-prefix-normal .typer-ghost-text {
+  color: var(--text-normal);
+  opacity: 0.6;
+}
+
+body.typer-prefix-muted .typer-ghost-text {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+body.typer-prefix-faint .typer-ghost-text {
+  color: var(--text-faint);
+  opacity: 0.8;
+}
+
+body.typer-prefix-accent .typer-ghost-text {
+  color: var(--text-accent);
+  opacity: 0.6;
 }
 
 /* Responsive adjustments */
