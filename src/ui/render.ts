@@ -7,6 +7,7 @@ import {
   EditorSuggestContext,
   EditorSuggestTriggerInfo,
   TFile,
+  Scope,
 } from "obsidian";
 import { TyperClient } from "../core/client";
 import { AbbreviationManager } from "../core/abbrv";
@@ -48,7 +49,19 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     this.client = client;
     this.plugin = plugin;
     this.abbreviationManager = new AbbreviationManager(app, plugin);
-    this.scope.register([], " ", this.handleKeybinds.bind(this));
+    
+    // Register all keybinds that should work when suggestions are active
+    // These are scoped to only work when the suggestion menu is open
+    this.scope.register([], "Tab", this.handleKeybinds.bind(this));
+    this.scope.register([], "Enter", this.handleKeybinds.bind(this));
+    this.scope.register([], "ArrowUp", this.handleKeybinds.bind(this));
+    this.scope.register([], "ArrowDown", this.handleKeybinds.bind(this));
+    this.scope.register([], "Escape", this.handleKeybinds.bind(this));
+    
+    // Register number keys for quick selection
+    for (let i = 1; i <= 9; i++) {
+      this.scope.register([], i.toString(), this.handleKeybinds.bind(this));
+    }
 
     this.observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
@@ -98,6 +111,25 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
 
   public getLastSuggestions(): Suggestion[] {
     return this.lastSuggestions;
+  }
+
+  public updateKeybinds(): void {
+    // Clear existing scope registrations and re-register with new keybinds
+    // This is a simplified approach - in a real implementation you'd want to
+    // track and unregister specific handlers
+    this.scope = new Scope();
+    
+    // Re-register all keybinds with current configuration
+    this.scope.register([], keybindManager.getKeysForAction("select")[0] || "Enter", this.handleKeybinds.bind(this));
+    this.scope.register([], keybindManager.getKeysForAction("select_and_space")[0] || "Tab", this.handleKeybinds.bind(this));
+    this.scope.register([], "ArrowUp", this.handleKeybinds.bind(this));
+    this.scope.register([], "ArrowDown", this.handleKeybinds.bind(this));
+    this.scope.register([], "Escape", this.handleKeybinds.bind(this));
+    
+    // Register number keys for quick selection
+    for (let i = 1; i <= 9; i++) {
+      this.scope.register([], i.toString(), this.handleKeybinds.bind(this));
+    }
   }
 
   private handleKeybinds(evt: KeyboardEvent): void {
@@ -154,9 +186,14 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
 
     if (
       keybindManager.getKeysForAction("select").includes(evt.key) ||
-      evt.key === " "
+      keybindManager.getKeysForAction("select_and_space").includes(evt.key)
     ) {
-      if (evt.key === " " && this.lastSuggestions.length === 0) {
+      if (
+        keybindManager
+          .getKeysForAction("select_and_space")
+          .includes(evt.key) &&
+        this.lastSuggestions.length === 0
+      ) {
         return;
       }
       evt.preventDefault();
@@ -372,7 +409,9 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     const editor = this.context.editor as any;
     clearGhostText(editor.cm);
 
-    const insertSpace = evt instanceof KeyboardEvent && evt.key === " ";
+    const insertSpace =
+      evt instanceof KeyboardEvent &&
+      keybindManager.getKeysForAction("select_and_space").includes(evt.key);
     const replacement = suggestion.word + (insertSpace ? " " : "");
     this.originalWordForBackspace = this.currentWord;
     this.lastCommittedWord = suggestion.word;

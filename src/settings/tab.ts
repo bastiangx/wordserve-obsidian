@@ -3,6 +3,7 @@ import TyperPlugin from "../../main";
 import { CONFIG } from "../core/config";
 import { AbbreviationDialog } from "../ui/abbrv-dialog";
 import { logger } from "../utils/logger";
+import { keybindManager } from "../settings/keybinds";
 
 export class TyperSettingTab extends PluginSettingTab {
   plugin: TyperPlugin;
@@ -15,8 +16,6 @@ export class TyperSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-
-    // Render the settings
     this.renderSettings(containerEl);
   }
 
@@ -25,8 +24,6 @@ export class TyperSettingTab extends PluginSettingTab {
   }
 
   private async renderSettings(containerEl: HTMLElement): Promise<void> {
-
-    // Behavior Section
     new Setting(containerEl)
       .setName("Behavior")
       .setHeading();
@@ -175,8 +172,45 @@ export class TyperSettingTab extends PluginSettingTab {
         return text;
       });
 
+    // Keybinds Section
+    new Setting(containerEl)
+      .setName("Keybinds")
+      .setHeading();
+
+    new Setting(containerEl)
+      .setName("Accept suggestion")
+      .setDesc("Key to accept suggestion without adding space")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("Enter", "Enter");
+        dropdown.addOption("Tab", "Tab");
+        dropdown.setValue(CONFIG.keybinds.select[0] || "Enter");
+        dropdown.onChange(async (value) => {
+          // Update the keybind manager
+          keybindManager.overrideKeybind("select", [value]);
+          // Re-register the scope keybinds in TyperSuggest
+          this.plugin.suggestor.updateKeybinds();
+          new Notice(`Accept suggestion key changed to ${value}`);
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Accept suggestion and add space")
+      .setDesc("Key to accept suggestion and automatically add a space")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("Tab", "Tab");
+        dropdown.addOption("Enter", "Enter");
+        dropdown.setValue(CONFIG.keybinds.select_and_space[0] || "Tab");
+        dropdown.onChange(async (value) => {
+          // Update the keybind manager
+          keybindManager.overrideKeybind("select_and_space", [value]);
+          // Re-register the scope keybinds in TyperSuggest
+          this.plugin.suggestor.updateKeybinds();
+          new Notice(`Accept suggestion and add space key changed to ${value}`);
+        });
+      });
+
     // Shortcuts & Abbreviations Section
-    containerEl.createEl("h3", { text: "Shortcuts & Abbreviations" });
+    containerEl.createEl("h3", { text: "Shortcuts & abbreviations" });
 
     new Setting(containerEl)
       .setName("Enable abbreviations")
