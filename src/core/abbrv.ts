@@ -4,6 +4,7 @@ import { CONFIG } from "./config";
 import { logger } from "../utils/logger";
 import * as path from "path";
 
+/** Manages text abbreviations that expand shortcuts to full text. */
 export class AbbreviationManager {
   private app: App;
   private plugin: Plugin;
@@ -115,8 +116,6 @@ export class AbbreviationManager {
       return false;
     }
 
-    // Check for valid UTF-8 characters (letters, numbers, symbols)
-    // Exclude control characters and problematic characters
     const validPattern = /^[\p{L}\p{N}\p{P}\p{S}]+$/u;
     return validPattern.test(shortcut);
   }
@@ -130,7 +129,6 @@ export class AbbreviationManager {
       return false;
     }
 
-    // Basic validation - exclude null bytes and other control characters that could break JSON
     return (
       !target.includes("\0") &&
       !target.includes("\x01") &&
@@ -154,11 +152,13 @@ export class AbbreviationManager {
     }
   }
 
+  /** Finds an abbreviation by shortcut. */
   public findAbbreviation(text: string): AbbreviationEntry | null {
     const entry = this.abbreviations[text];
     return entry || null;
   }
 
+  /** Adds a new abbreviation. */
   public async addAbbreviation(
     shortcut: string,
     target: string
@@ -178,6 +178,7 @@ export class AbbreviationManager {
     return true;
   }
 
+  /** Removes an abbreviation by shortcut. */
   public async removeAbbreviation(shortcut: string): Promise<boolean> {
     if (shortcut in this.abbreviations) {
       delete this.abbreviations[shortcut];
@@ -187,6 +188,7 @@ export class AbbreviationManager {
     return false;
   }
 
+  /** Updates an existing abbreviation. */
   public async updateAbbreviation(
     oldShortcut: string,
     newShortcut: string,
@@ -196,7 +198,6 @@ export class AbbreviationManager {
       return false;
     }
 
-    // If shortcut changed, remove old one
     if (oldShortcut !== newShortcut && oldShortcut in this.abbreviations) {
       delete this.abbreviations[oldShortcut];
     }
@@ -212,10 +213,12 @@ export class AbbreviationManager {
     return true;
   }
 
+  /** Returns all stored abbreviations as an array. */
   public getAllAbbreviations(): AbbreviationEntry[] {
     return Object.values(this.abbreviations);
   }
 
+  /** Searches abbreviations by shortcut text containing the query string. */
   public searchAbbreviations(query: string): AbbreviationEntry[] {
     const lowerQuery = query.toLowerCase();
     return Object.values(this.abbreviations).filter((entry) =>
@@ -223,6 +226,7 @@ export class AbbreviationManager {
     );
   }
 
+  /** Sorts abbreviation entries by creation date or alphabetically. */
   public sortAbbreviations(
     entries: AbbreviationEntry[],
     sortBy:
@@ -247,14 +251,13 @@ export class AbbreviationManager {
     }
   }
 
+  /** Checks if text at cursor position contains a valid abbreviation shortcut. */
   public checkForAbbreviation(
     text: string,
     cursorPos: number
   ): { abbreviation: AbbreviationEntry; start: number; end: number } | null {
-    // Look backwards from cursor to find potential abbreviation
     let start = cursorPos;
 
-    // Find word boundaries similar to how the main suggest system works
     while (
       start > 0 &&
       /[\p{L}\p{N}\p{P}\p{S}]/u.test(text.charAt(start - 1)) &&
@@ -267,7 +270,6 @@ export class AbbreviationManager {
 
     const potentialShortcut = text.slice(start, cursorPos);
 
-    // Only check if the potential shortcut doesn't contain whitespace
     if (potentialShortcut.includes(" ") || potentialShortcut.includes("\t")) {
       return null;
     }
@@ -285,6 +287,7 @@ export class AbbreviationManager {
     return null;
   }
 
+  /** Expands a shortcut to its full text and optionally shows a notification. */
   public expandAbbreviation(
     shortcut: string,
     showNotification: boolean = false

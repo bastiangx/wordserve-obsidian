@@ -9,6 +9,7 @@ import { logger } from "./src/utils/logger";
 import { hotkeyCmd } from "./src/commands/hotkeys";
 import { ghostTextState } from "./src/editor/ghost-text-extension";
 
+/** Main plugin class that coordinates text suggestions & abbreviations */
 export default class TyperPlugin extends Plugin {
   settings: TyperPluginSettings;
   client: TyperClient;
@@ -81,6 +82,7 @@ export default class TyperPlugin extends Plugin {
     this.client.cleanup();
   }
 
+  /** Loads plugin settings from storage and initializes logger configuration. */
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     logger.setDebugMode(this.settings.debugMode);
@@ -93,20 +95,25 @@ export default class TyperPlugin extends Plugin {
     });
   }
 
+  /** Saves current settings to storage and updates various configurations. */
   async saveSettings() {
     logger.config("Saving settings", this.settings);
     await this.saveData(this.settings);
     this.updateEditorExtensions();
     this.updateBodyClasses();
+    
+    // Update auto-respawn configuration
+    this.client.updateAutoRespawnConfig(this.settings.autorespawn);
   }
 
+  /** Updates the CodeMirror editor extensions for the plugin. */
   updateEditorExtensions(): void {
     this.editorExtensions.length = 0;
     this.editorExtensions.push(ghostTextState);
     this.app.workspace.updateOptions();
   }
 
-  // misc config updates
+  /** Updates CSS classes on the document body based on plugin settings. */
   updateBodyClasses(): void {
     const body = document.body;
 
@@ -162,8 +169,19 @@ export default class TyperPlugin extends Plugin {
     body.addClass(
       `typer-prefix-${this.settings.accessibility.prefixColorIntensity}`
     );
+
+    body.removeClass(
+      "typer-ghost-normal",
+      "typer-ghost-muted",
+      "typer-ghost-faint",
+      "typer-ghost-accent"
+    );
+    body.addClass(
+      `typer-ghost-${this.settings.accessibility.ghostTextColorIntensity}`
+    );
   }
 
+  /** Shows or hides the debug status bar based on debug mode setting. */
   updateDebugStatusBar(): void {
     if (this.settings.debugMode) {
       if (!this.statusBarEl) {

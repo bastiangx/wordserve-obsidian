@@ -47,6 +47,7 @@ if (!("accessibility" in config)) {
     boldSuffix: false,
     uppercaseSuggestions: false,
     prefixColorIntensity: "faint",
+    ghostTextColorIntensity: "faint",
   };
 }
 
@@ -83,6 +84,24 @@ if (!("abbreviationsEnabled" in config.plugin)) {
 // Ensure abbreviationNotification is present in plugin config
 if (!("abbreviationNotification" in config.plugin)) {
   config.plugin.abbreviationNotification = false;
+}
+
+if (!("autorespawn" in config)) {
+  config.autorespawn = {
+    enabled: true,
+    requestThreshold: 4000,
+    timeThresholdMinutes: 60,
+  };
+}
+
+if (!("enabled" in config.autorespawn)) {
+  config.autorespawn.enabled = true;
+}
+if (!("requestThreshold" in config.autorespawn)) {
+  config.autorespawn.requestThreshold = 4000;
+}
+if (!("timeThresholdMinutes" in config.autorespawn)) {
+  config.autorespawn.timeThresholdMinutes = 60;
 }
 
 // Ensure minPrefix is present in config.plugin
@@ -158,6 +177,7 @@ export interface AccessibilityConfig {
   boldSuffix: boolean;
   uppercaseSuggestions: boolean;
   prefixColorIntensity: "normal" | "muted" | "faint" | "accent" ;
+  ghostTextColorIntensity: "normal" | "muted" | "faint" | "accent" ;
 }
 
 export interface DebugConfig {
@@ -175,6 +195,12 @@ export interface AbbreviationsConfig {
   showNotification: boolean;
 }
 
+export interface AutorespawnConfig {
+  enabled: boolean;
+  requestThreshold: number;
+  timeThresholdMinutes: number;
+}
+
 export interface ConfigType {
   plugin: PluginConfig;
   internals: InternalsConfig;
@@ -185,6 +211,7 @@ export interface ConfigType {
   accessibility: AccessibilityConfig;
   debug: DebugConfig;
   abbreviations: AbbreviationsConfig;
+  autorespawn: AutorespawnConfig;
 }
 
 // Auto-generated config values
@@ -210,6 +237,7 @@ export const DEFAULT_SETTINGS: TyperPluginSettings = {
   abbreviationNotification: CONFIG.plugin.abbreviationNotification,
   minPrefix: CONFIG.plugin.minPrefix,
   maxLimit: CONFIG.plugin.maxLimit,
+  autorespawn: CONFIG.autorespawn,
 };
 `;
 fs.writeFileSync(path.resolve(__dirname, "../src/core/config.ts"), configOut);
@@ -315,11 +343,6 @@ body.typer-prefix-faint .suggestion-prefix {
 
 body.typer-prefix-accent .suggestion-prefix {
   color: var(--text-accent);
-}
-
-.cm-ghost-text {
-  color: var(--text-faint);
-  opacity: 0.5;
 }
 
 
@@ -705,25 +728,31 @@ body.typer-bold-suffix .typer-ghost-text {
   font-weight: bold;
 }
 
-/* Ghost text color based on prefix color settings */
-body.typer-prefix-normal .typer-ghost-text {
-  color: var(--text-normal);
-  opacity: 0.6;
+/* Default ghost text styling (fallback) */
+.cm-ghost-text {
+  color: var(--text-faint) !important;
+  opacity: 0.5 !important;
 }
 
-body.typer-prefix-muted .typer-ghost-text {
-  color: var(--text-muted);
-  opacity: 0.7;
+/* Ghost text color based on ghost text color settings */
+body.typer-ghost-normal .cm-ghost-text {
+  color: var(--text-normal) !important;
+  opacity: 0.6 !important;
 }
 
-body.typer-prefix-faint .typer-ghost-text {
-  color: var(--text-faint);
-  opacity: 0.8;
+body.typer-ghost-muted .cm-ghost-text {
+  color: var(--text-muted) !important;
+  opacity: 0.7 !important;
 }
 
-body.typer-prefix-accent .typer-ghost-text {
-  color: var(--text-accent);
-  opacity: 0.6;
+body.typer-ghost-faint .cm-ghost-text {
+  color: var(--text-faint) !important;
+  opacity: 0.8 !important;
+}
+
+body.typer-ghost-accent .cm-ghost-text {
+  color: var(--text-accent) !important;
+  opacity: 0.6 !important;
 }
 
 /* Responsive adjustments */

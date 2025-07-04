@@ -12,6 +12,7 @@ interface TyperSettings {
   };
 }
 
+/** Singleton logger with category-specific debug control for Typer plugin. */
 class TyperLogger {
   private static instance: TyperLogger;
   private debugEnabled = false;
@@ -70,7 +71,6 @@ class TyperLogger {
     console.error(`[TYPER-FATAL] ${message}`, ...args);
   }
 
-  // Specialized debug methods with prefixes
   msgpack(message: string, data?: any): void {
     if (this.debugEnabled && this.debugSettings?.msgpackData) {
       console.log(`[MP] ${message}`);
@@ -110,13 +110,13 @@ class TyperLogger {
     }
   }
 
+  /** Parses and categorizes log output from the backend core process. */
   parseCoreLog(logOutput: string): void {
     const lines = logOutput.split("\n");
 
     for (const line of lines) {
       if (!line.trim()) continue;
 
-      // Handle charmbracelet/log format: timestamp LEVEL message
       const charmMatch = line.match(
         /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?\s*(FATA|ERROR|WARN|INFO|DEBUG)\s+(.+)/
       );
@@ -144,7 +144,6 @@ class TyperLogger {
         continue;
       }
 
-      // Fallback
       const fatalMatch = line.match(/FATA.*?(.*)/);
       if (fatalMatch) {
         this.fatal(`[COR] ${fatalMatch[1] || line}`);
@@ -169,7 +168,6 @@ class TyperLogger {
         continue;
       }
 
-      // Handle common error indicators
       if (
         line.includes("Failed") ||
         line.includes("Error") ||

@@ -5,6 +5,7 @@ import { AbbreviationDialog } from "../ui/abbrv-dialog";
 import { logger } from "../utils/logger";
 import { keybindManager } from "../settings/keybinds";
 
+/** Settings tab interface for configuring Typer plugin behavior and preferences. */
 export class TyperSettingTab extends PluginSettingTab {
   plugin: TyperPlugin;
 
@@ -56,17 +57,17 @@ export class TyperSettingTab extends PluginSettingTab {
             const oldValue = this.plugin.settings.minWordLength;
             this.plugin.settings.minWordLength = value;
             this.plugin.suggestor.minChars = value;
-            
+
             // Update TOML config file for core
             const success = await this.plugin.client.updateConfigFile({
               minPrefix: value
             });
-            
+
             if (success) {
               // Restart the backend to pick up new config
               await this.plugin.client.restart();
             }
-            
+
             logger.config("Min word length changed", {
               from: oldValue,
               to: value,
@@ -92,17 +93,17 @@ export class TyperSettingTab extends PluginSettingTab {
             const oldValue = this.plugin.settings.maxSuggestions;
             this.plugin.settings.maxSuggestions = value;
             this.plugin.suggestor.limit = value;
-            
+
             // Update TOML config file for core
             const success = await this.plugin.client.updateConfigFile({
               maxLimit: value
             });
-            
+
             if (success) {
               // Restart the backend to pick up new config
               await this.plugin.client.restart();
             }
-            
+
             logger.config("Max suggestions changed", {
               from: oldValue,
               to: value,
@@ -371,6 +372,26 @@ export class TyperSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Ghost text color intensity")
+      .setDesc("Controls how prominently ghost text appears in the editor")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("normal", "Normal");
+        dropdown.addOption("accent", "Accent");
+        dropdown.addOption("muted", "Muted");
+        dropdown.addOption("faint", "Faint");
+        dropdown.setValue(
+          this.plugin.settings.accessibility.ghostTextColorIntensity
+        );
+        dropdown.onChange(
+          async (value: "normal" | "muted" | "faint" | "accent") => {
+            this.plugin.settings.accessibility.ghostTextColorIntensity = value;
+            this.updateBodyClasses();
+            await this.plugin.saveSettings();
+          }
+        );
+      });
+
+    new Setting(containerEl)
       .setName("Prefix color intensity")
       .setDesc("Controls how muted the prefix characters appear in suggestions")
       .addDropdown((dropdown) => {
@@ -393,6 +414,25 @@ export class TyperSettingTab extends PluginSettingTab {
     // Debug Section
     containerEl.createEl("h3", { text: "Debugging" });
 
+    // Client Health Statistics (only in debug mode)
+    if (this.plugin.settings.debugMode) {
+      const healthStats = this.plugin.client.getHealthStats();
+      new Setting(containerEl)
+        .setName("Client health statistics")
+        .setDesc(`Pending requests: ${healthStats.pendingRequests} | Buffer size: ${healthStats.bufferSize} bytes | Tracked IDs: ${healthStats.trackedRequestIds} | Process running: ${healthStats.isProcessRunning}`)
+        .addButton((button) =>
+          button
+            .setButtonText("Force cleanup")
+            .setTooltip("Manually trigger cleanup of client resources")
+            .onClick(() => {
+              this.plugin.client.forceCleanup();
+              new Notice("Client resources cleaned up");
+              // Refresh the settings display
+              this.display();
+            })
+        );
+    }
+
     new Setting(containerEl)
       .setName("Toggle Debug Mode")
       .setDesc(
@@ -411,6 +451,8 @@ export class TyperSettingTab extends PluginSettingTab {
                   this.plugin.updateDebugStatusBar();
                   await this.plugin.saveSettings();
                   toggle.setValue(true);
+                  // Refresh settings to show health stats
+                  this.display();
                 },
                 () => {
                   toggle.setValue(false);
@@ -421,6 +463,8 @@ export class TyperSettingTab extends PluginSettingTab {
               logger.setDebugMode(value);
               this.plugin.updateDebugStatusBar();
               await this.plugin.saveSettings();
+              // Refresh settings to show/hide health stats
+              this.display();
             }
           })
       );
@@ -480,6 +524,16 @@ export class TyperSettingTab extends PluginSettingTab {
     body.addClass(
       `typer-prefix-${this.plugin.settings.accessibility.prefixColorIntensity}`
     );
+
+    // Ghost text color intensity
+    body.removeClass(
+      "typer-ghost-normal",
+      "typer-ghost-muted",
+      "typer-ghost-faint",
+      "typer-ghost-accent"
+    );
+    const ghostClass = `typer-ghost-${this.plugin.settings.accessibility.ghostTextColorIntensity}`;
+    body.addClass(ghostClass);
   }
 
   private createDebugEventsSection(containerEl: HTMLElement): void {
@@ -585,6 +639,40 @@ export class TyperSettingTab extends PluginSettingTab {
             logger.setDebugSettings(this.plugin.settings.debug);
             logger.config("Debug option changed", { abbrEvents: value });
             await this.plugin.saveSettings();
+          })
+      );
+
+    // Auto-respawn status display
+    const autoRespawnStats = this.plugin.client.getAutoRespawnStats();
+    new Setting(debugContent)
+      .setName("Auto-respawn status")
+      .setDesc(`Requests: ${autoRespawnStats.requestCount}/${this.plugin.settings.autorespawn.requestThreshold} | Time: ${autoRespawnStats.minutesSinceLastRespawn}/${this.plugin.settings.autorespawn.timeThresholdMinutes} min`)
+      .setClass("typer-stats-display");
+
+    new Setting(debugContent)
+      .setName("Auto-respawn")
+      .setDesc("Automatically restart the core process to prevent memory bloat. Disabling this may cause memory issues in early development.")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.autorespawn.enabled)
+          .onChange(async (value) => {
+            if (!value) {
+              const modal = new AutoRespawnWarningModal(
+                this.app,
+                async () => {
+                  this.plugin.settings.autorespawn.enabled = false;
+                  await this.plugin.saveSettings();
+                  toggle.setValue(false);
+                },
+                () => {
+                  toggle.setValue(true);
+                }
+              );
+              modal.open();
+            } else {
+              this.plugin.settings.autorespawn.enabled = true;
+              await this.plugin.saveSettings();
+            }
           })
       );
 
@@ -756,6 +844,65 @@ class DebugWarningModal extends Modal {
 
     const confirmButton = buttonContainer.createEl("button", {
       text: "Enable Debug Mode",
+      cls: "mod-warning",
+    });
+    confirmButton.onclick = async () => {
+      await this.onConfirm();
+      this.close();
+    };
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
+class AutoRespawnWarningModal extends Modal {
+  private onConfirm: () => Promise<void>;
+  private onCancel: () => void;
+
+  constructor(app: App, onConfirm: () => Promise<void>, onCancel: () => void) {
+    super(app);
+    this.onConfirm = onConfirm;
+    this.onCancel = onCancel;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: "Disable Auto-Respawn?" });
+
+    contentEl.createEl("p", {
+      text: "Auto-respawn prevents memory bloat by periodically restarting the core process.",
+    });
+
+    contentEl.createEl("p", {
+      text: "Disabling this feature may cause:",
+      cls: "mod-warning"
+    });
+
+    const list = contentEl.createEl("ul");
+    list.createEl("li", { text: "Increased memory usage over time" });
+    list.createEl("li", { text: "Potential performance degradation" });
+    list.createEl("li", { text: "Plugin instability during extended use" });
+    list.createEl("li", { text: "Possible crashes in development builds" });
+
+    contentEl.createEl("p", {
+      text: "Typer is in early development. Auto-respawn is recommended for stability.",
+      cls: "mod-warning"
+    });
+
+    const buttonContainer = contentEl.createDiv({
+      cls: "modal-button-container",
+    });
+
+    const cancelButton = buttonContainer.createEl("button", { text: "Keep Enabled" });
+    cancelButton.onclick = () => {
+      this.onCancel();
+      this.close();
+    };
+
+    const confirmButton = buttonContainer.createEl("button", {
+      text: "Disable Auto-Respawn",
       cls: "mod-warning",
     });
     confirmButton.onclick = async () => {

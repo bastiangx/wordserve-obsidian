@@ -3,6 +3,7 @@ import { StateField, Annotation } from '@codemirror/state';
 
 const ghostTextAnnotation = Annotation.define<{ pos: number; text: string } | null>();
 
+/** State field that manages ghost text display in CodeMirror editor. */
 export const ghostTextState = StateField.define<{ pos: number; text: string } | null>({
 	create() {
 		return null;
@@ -18,8 +19,6 @@ export const ghostTextState = StateField.define<{ pos: number; text: string } | 
 			if (newPos === null) return null;
 			return { ...value, pos: newPos };
 		}
-
-
 		return value;
 	},
 	provide: (f) =>
@@ -37,6 +36,7 @@ export const ghostTextState = StateField.define<{ pos: number; text: string } | 
 		}),
 });
 
+/** Widget for rendering ghost text in the editor. */
 class GhostTextWidget extends WidgetType {
 	constructor(readonly text: string) {
 		super();
@@ -54,14 +54,16 @@ class GhostTextWidget extends WidgetType {
 	}
 }
 
-export function setGhostText(view: EditorView, text: string | null) {
-	const pos = view.state.selection.main.head;
-	const payload = text ? { pos, text } : null;
+/** Sets or clears ghost text at the current cursor position. */
+export function setGhostText(view: EditorView, pos: number, text: string | null) {
 	view.dispatch({
-		annotations: ghostTextAnnotation.of(payload),
+		annotations: [ghostTextAnnotation.of(text ? { pos, text } : null)],
 	});
 }
 
+/** Clears all ghost text from the editor view. */
 export function clearGhostText(view: EditorView) {
-	setGhostText(view, null);
+	view.dispatch({
+		annotations: [ghostTextAnnotation.of(null)],
+	});
 }

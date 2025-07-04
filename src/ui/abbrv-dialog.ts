@@ -4,6 +4,7 @@ import { AbbreviationEntry } from "../types";
 import TyperPlugin from "../../main";
 import { CONFIG } from "../core/config";
 
+/** Modal dialog for managing text abbreviations and shortcuts. */
 export class AbbreviationDialog extends Modal {
   private abbreviationManager: AbbreviationManager;
   private plugin: TyperPlugin;
@@ -18,92 +19,82 @@ export class AbbreviationDialog extends Modal {
     this.abbreviationManager = abbreviationManager;
   }
 
-  async onOpen() {
-    const { contentEl, modalEl } = this;
-    
-    // Add class to the modal element for targeting
-    modalEl.addClass("typer-abbreviation-dialog");
-    
-    // Set modal size directly
-    modalEl.style.width = "700px";
-    modalEl.style.maxWidth = "90vw";
-    modalEl.style.height = "600px";
-    modalEl.style.maxHeight = "80vh";
-    
-    contentEl.empty();
+	async onOpen() {
+		const { contentEl, modalEl } = this;
+		
+		modalEl.addClass("typer-abbreviation-dialog");
+		
+		modalEl.style.width = "700px";
+		modalEl.style.maxWidth = "90vw";
+		modalEl.style.height = "600px";
+		modalEl.style.maxHeight = "80vh";
+		
+		contentEl.empty();
 
-    // Title
-    contentEl.createEl("h2", { text: "Shortcuts & Abbreviations" });
+		contentEl.createEl("h2", { text: "Shortcuts & Abbreviations" });
 
-    // Search and sort controls
-    await this.createControls();
+		await this.createControls();
 
-    // Add new abbreviation button
-    const addButtonContainer = contentEl.createDiv({ cls: "typer-add-button-container" });
-    const addButton = new ButtonComponent(addButtonContainer);
-    addButton
-      .setButtonText("+ Add New Shortcut")
-      .setCta()
-      .onClick(() => this.addNewEntry());
+		const addButtonContainer = contentEl.createDiv({ cls: "typer-add-button-container" });
+		const addButton = new ButtonComponent(addButtonContainer);
+		addButton
+			.setButtonText("+ Add New Shortcut")
+			.setCta()
+			.onClick(() => this.addNewEntry());
 
-    // Entries container
-    const entriesContainer = contentEl.createDiv({ cls: "typer-entries-container" });
+		const entriesContainer = contentEl.createDiv({ cls: "typer-entries-container" });
     this.refreshEntries(entriesContainer);
   }
 
-  private async createControls() {
-    const { contentEl } = this;
-    const controlsContainer = contentEl.createDiv({ cls: "typer-controls-container" });
+	private async createControls() {
+		const { contentEl } = this;
+		const controlsContainer = contentEl.createDiv({ cls: "typer-controls-container" });
 
-    // Search input
-    const searchContainer = controlsContainer.createDiv({ cls: "typer-search-container" });
-    searchContainer.createEl("label", { text: "Search shortcuts:" });
-    
-    this.searchInput = new TextComponent(searchContainer);
-    this.searchInput
-      .setPlaceholder("Search by shortcut...")
-      .onChange((value) => {
-        this.filterEntries(value);
-        this.renderEntries();
-      });
+		const searchContainer = controlsContainer.createDiv({ cls: "typer-search-container" });
+		searchContainer.createEl("label", { text: "Search shortcuts:" });
+		
+		this.searchInput = new TextComponent(searchContainer);
+		this.searchInput
+			.setPlaceholder("Search by shortcut...")
+			.onChange((value) => {
+				this.filterEntries(value);
+				this.renderEntries();
+			});
 
-    // Sort controls
-    const sortContainer = controlsContainer.createDiv({ cls: "typer-sort-container" });
-    sortContainer.createEl("label", { text: "Sort by:" });
-    
-    const sortSelect = sortContainer.createEl("select");
-    const sortOptions = [
-      { value: "newest", text: "Newest first" },
-      { value: "oldest", text: "Oldest first" },
-      { value: "alphabetical-asc", text: "A-Z" },
-      { value: "alphabetical-desc", text: "Z-A" }
-    ];
+		const sortContainer = controlsContainer.createDiv({ cls: "typer-sort-container" });
+		sortContainer.createEl("label", { text: "Sort by:" });
+		
+		const sortSelect = sortContainer.createEl("select");
+		const sortOptions = [
+			{ value: "newest", text: "Newest first" },
+			{ value: "oldest", text: "Oldest first" },
+			{ value: "alphabetical-asc", text: "A-Z" },
+			{ value: "alphabetical-desc", text: "Z-A" }
+		];
 
-    sortOptions.forEach(option => {
-      const optionEl = sortSelect.createEl("option", { value: option.value, text: option.text });
-      if (option.value === this.sortBy) {
-        optionEl.selected = true;
-      }
-    });
+		sortOptions.forEach(option => {
+			const optionEl = sortSelect.createEl("option", { value: option.value, text: option.text });
+			if (option.value === this.sortBy) {
+				optionEl.selected = true;
+			}
+		});
 
-    sortSelect.addEventListener("change", (e) => {
-      this.sortBy = (e.target as HTMLSelectElement).value as typeof this.sortBy;
-      this.refreshEntries();
-    });
-  }
+		sortSelect.addEventListener("change", (e) => {
+			this.sortBy = (e.target as HTMLSelectElement).value as typeof this.sortBy;
+			this.refreshEntries();
+		});
+	}
 
-  private filterEntries(query: string = "") {
-    if (!query.trim()) {
-      this.filteredEntries = this.entries;
-    } else {
-      this.filteredEntries = this.abbreviationManager.searchAbbreviations(query);
-    }
-    // Don't call refreshEntries here to avoid recursion
-  }
+	private filterEntries(query: string = "") {
+		if (!query.trim()) {
+			this.filteredEntries = this.entries;
+		} else {
+			this.filteredEntries = this.abbreviationManager.searchAbbreviations(query);
+		}
+	}
 
-  private refreshEntries(container?: HTMLElement) {
-    // Load fresh data from the manager
-    this.entries = this.abbreviationManager.getAllAbbreviations();
+	private refreshEntries(container?: HTMLElement) {
+		this.entries = this.abbreviationManager.getAllAbbreviations();
     
     // Update filtered entries based on current search
     const currentSearch = this.searchInput?.getValue() || "";

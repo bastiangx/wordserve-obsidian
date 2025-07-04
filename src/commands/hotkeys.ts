@@ -1,6 +1,7 @@
 import { Command } from "obsidian";
 import TyperPlugin from "../../main";
 
+/** Creates hotkey commands for navigating suggestions using synthetic keyboard events. */
 export function hotkeyCmd(plugin: TyperPlugin): Command[] {
   return [
     {
@@ -8,7 +9,6 @@ export function hotkeyCmd(plugin: TyperPlugin): Command[] {
       name: "Navigate suggestions up",
       callback: () => {
         if (plugin.suggestor.context) {
-          // Call the handleKeybinds method directly to avoid recursion
           const syntheticEvent = new KeyboardEvent("keydown", {
             key: "ArrowUp",
             code: "ArrowUp",
@@ -25,7 +25,6 @@ export function hotkeyCmd(plugin: TyperPlugin): Command[] {
       name: "Navigate suggestions down",
       callback: () => {
         if (plugin.suggestor.context) {
-          // Call the handleKeybinds method directly to avoid recursion
           const syntheticEvent = new KeyboardEvent("keydown", {
             key: "ArrowDown", 
             code: "ArrowDown",

@@ -20,6 +20,7 @@ export interface TyperPluginSettings {
     boldSuffix: boolean;
     uppercaseSuggestions: boolean;
     prefixColorIntensity: "normal" | "muted" | "faint" | "accent";
+    ghostTextColorIntensity: "normal" | "muted" | "faint" | "accent";
   };
   debug: {
     msgpackData: boolean;
@@ -29,12 +30,17 @@ export interface TyperPluginSettings {
     renderEvents: boolean;
     abbrEvents: boolean;
   };
+  autorespawn: {
+    enabled: boolean;
+    requestThreshold: number;
+    timeThresholdMinutes: number;
+  };
 }
 
 export interface AbbreviationEntry {
   shortcut: string;
   target: string;
-  created: number; // timestamp
+  created: number;
 }
 
 export interface AbbreviationMap {

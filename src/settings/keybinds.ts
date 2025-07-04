@@ -11,6 +11,7 @@ export type KeybindAction =
 
 export type Keybinds = KeybindsConfig;
 
+/** Manages keybind configuration and provides access to key mappings. */
 export class KeybindManager {
   private keybinds: Keybinds;
 
