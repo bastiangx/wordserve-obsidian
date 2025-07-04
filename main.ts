@@ -26,7 +26,7 @@ export default class TyperPlugin extends Plugin {
 
     const updateSuggestorSettings = () => {
       this.suggestor.minChars = this.settings.minWordLength;
-      this.suggestor.limit = this.settings.maxSuggestions;
+      this.suggestor.limit = Math.max(1, this.settings.maxSuggestions || 20);
       this.suggestor.numberSelectionEnabled = this.settings.numberSelection;
       this.suggestor.debounceDelay = this.settings.debounceTime;
       this.suggestor.showRankingOverride = this.settings.showRankingOverride;
@@ -85,6 +85,18 @@ export default class TyperPlugin extends Plugin {
   /** Loads plugin settings from storage and initializes logger configuration. */
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    
+    // Validate and fix critical settings
+    if (!this.settings.maxSuggestions || this.settings.maxSuggestions <= 0) {
+      logger.warn(`Invalid maxSuggestions value: ${this.settings.maxSuggestions}, resetting to default: 20`);
+      this.settings.maxSuggestions = 20;
+    }
+    
+    if (!this.settings.minWordLength || this.settings.minWordLength <= 0) {
+      logger.warn(`Invalid minWordLength value: ${this.settings.minWordLength}, resetting to default: 3`);
+      this.settings.minWordLength = 3;
+    }
+    
     logger.setDebugMode(this.settings.debugMode);
     logger.setDebugSettings(this.settings.debug);
     logger.config("Settings loaded", {

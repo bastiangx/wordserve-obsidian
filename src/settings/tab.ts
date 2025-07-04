@@ -91,8 +91,14 @@ export class TyperSettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (value) => {
             const oldValue = this.plugin.settings.maxSuggestions;
-            this.plugin.settings.maxSuggestions = value;
-            this.plugin.suggestor.limit = value;
+            const validValue = Math.max(1, Math.min(180, value)); // Ensure value is between 1 and 180
+            
+            if (validValue !== value) {
+              logger.warn(`Invalid maxSuggestions value: ${value}, using: ${validValue}`);
+            }
+            
+            this.plugin.settings.maxSuggestions = validValue;
+            this.plugin.suggestor.limit = validValue;
 
             // Update TOML config file for core
             const success = await this.plugin.client.updateConfigFile({
@@ -106,7 +112,7 @@ export class TyperSettingTab extends PluginSettingTab {
 
             logger.config("Max suggestions changed", {
               from: oldValue,
-              to: value,
+              to: validValue,
               tomlUpdated: success
             });
             await this.plugin.saveSettings();
@@ -414,25 +420,6 @@ export class TyperSettingTab extends PluginSettingTab {
     // Debug Section
     containerEl.createEl("h3", { text: "Debugging" });
 
-    // Client Health Statistics (only in debug mode)
-    if (this.plugin.settings.debugMode) {
-      const healthStats = this.plugin.client.getHealthStats();
-      new Setting(containerEl)
-        .setName("Client health statistics")
-        .setDesc(`Pending requests: ${healthStats.pendingRequests} | Buffer size: ${healthStats.bufferSize} bytes | Tracked IDs: ${healthStats.trackedRequestIds} | Process running: ${healthStats.isProcessRunning}`)
-        .addButton((button) =>
-          button
-            .setButtonText("Force cleanup")
-            .setTooltip("Manually trigger cleanup of client resources")
-            .onClick(() => {
-              this.plugin.client.forceCleanup();
-              new Notice("Client resources cleaned up");
-              // Refresh the settings display
-              this.display();
-            })
-        );
-    }
-
     new Setting(containerEl)
       .setName("Toggle Debug Mode")
       .setDesc(
@@ -451,8 +438,6 @@ export class TyperSettingTab extends PluginSettingTab {
                   this.plugin.updateDebugStatusBar();
                   await this.plugin.saveSettings();
                   toggle.setValue(true);
-                  // Refresh settings to show health stats
-                  this.display();
                 },
                 () => {
                   toggle.setValue(false);
@@ -463,8 +448,6 @@ export class TyperSettingTab extends PluginSettingTab {
               logger.setDebugMode(value);
               this.plugin.updateDebugStatusBar();
               await this.plugin.saveSettings();
-              // Refresh settings to show/hide health stats
-              this.display();
             }
           })
       );

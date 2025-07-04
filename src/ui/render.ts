@@ -226,8 +226,12 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
     if (suggestion && currentWord && suggestion.word.startsWith(currentWord)) {
       const ghost = suggestion.word.substring(currentWord.length);
       requestAnimationFrame(() => {
-        if (this.lastSuggestions.length > 0) {
-          setGhostText(editor.cm, this.context!.end.ch, ghost);
+        if (this.lastSuggestions.length > 0 && this.context) {
+          // Use the end position from context which should be correct
+          const doc = editor.cm.state.doc;
+          const line = doc.line(this.context.end.line + 1);
+          const pos = line.from + this.context.end.ch;
+          setGhostText(editor.cm, pos, ghost);
         }
       });
     } else {
