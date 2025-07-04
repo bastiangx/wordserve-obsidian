@@ -99,11 +99,6 @@ body.typer-prefix-accent .suggestion-prefix {
   color: var(--text-accent);
 }
 
-.cm-ghost-text {
-  color: var(--text-faint);
-  opacity: 0.5;
-}
-
 
 /* Font Size Options */
 body.typer-font-smallest .typer-suggestion-container {
@@ -487,25 +482,31 @@ body.typer-bold-suffix .typer-ghost-text {
   font-weight: bold;
 }
 
-/* Ghost text color based on prefix color settings */
-body.typer-prefix-normal .typer-ghost-text {
-  color: var(--text-normal);
-  opacity: 0.6;
+/* Default ghost text styling (fallback) */
+.cm-ghost-text {
+  color: var(--text-faint) !important;
+  opacity: 0.5 !important;
 }
 
-body.typer-prefix-muted .typer-ghost-text {
-  color: var(--text-muted);
-  opacity: 0.7;
+/* Ghost text color based on ghost text color settings */
+body.typer-ghost-normal .cm-ghost-text {
+  color: var(--text-normal) !important;
+  opacity: 0.6 !important;
 }
 
-body.typer-prefix-faint .typer-ghost-text {
-  color: var(--text-faint);
-  opacity: 0.8;
+body.typer-ghost-muted .cm-ghost-text {
+  color: var(--text-muted) !important;
+  opacity: 0.7 !important;
 }
 
-body.typer-prefix-accent .typer-ghost-text {
-  color: var(--text-accent);
-  opacity: 0.6;
+body.typer-ghost-faint .cm-ghost-text {
+  color: var(--text-faint) !important;
+  opacity: 0.8 !important;
+}
+
+body.typer-ghost-accent .cm-ghost-text {
+  color: var(--text-accent) !important;
+  opacity: 0.6 !important;
 }
 
 /* Responsive adjustments */

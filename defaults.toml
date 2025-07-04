@@ -59,6 +59,8 @@ boldSuffix = false
 uppercaseSuggestions = false
 # Prefix color intensity: "normal", "muted", "faint"
 prefixColorIntensity = "faint"
+# Ghost text color intensity: "normal", "muted", "faint"
+ghostTextColorIntensity = "faint"
 
 [internals]
 # Max allowed chars for typing before suggestions hide
@@ -103,3 +105,11 @@ numberSelect = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 # 'default' uses arrows only
 available = ["default"]
 default = "default"
+
+[autorespawn]
+# Auto-respawn configuration to prevent memory bloat
+enabled = true
+# Respawn after this many suggestion requests
+requestThreshold = 4000
+# Respawn after this many minutes as fallback
+timeThresholdMinutes = 60
