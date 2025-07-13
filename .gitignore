@@ -18,3 +18,7 @@ data.json
 *.lock
 *.bin
 data/abbrv-map.json
+
+# tmp
+*.tape
+*.gif

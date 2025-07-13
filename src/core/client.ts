@@ -54,17 +54,17 @@ export class TyperClient {
       let id = generateId();
       let attempts = 0;
       const maxAttempts = 10;
-      
+
       // Ensure unique ID
       while (this.usedRequestIds.has(id) && attempts < maxAttempts) {
         id = generateId();
         attempts++;
       }
-      
+
       if (attempts >= maxAttempts) {
         return reject(new Error("Unable to generate unique request ID"));
       }
-      
+
       this.usedRequestIds.add(id);
       request.id = id;
 
@@ -127,22 +127,22 @@ export class TyperClient {
         p: query,
         l: maxSuggestions,
       };
-      
+
       if (maxSuggestions <= 0) {
         logger.warn(`Invalid maxSuggestions value: ${this.plugin.settings.maxSuggestions}, using default: 20`);
       }
-      
+
       const response = await this.sendRequest<CompletionResponse>(request);
-      
+
       // Non-blocking auto-respawn tracking
       this.autoRespawnManager.onSuggestionRequest().catch(err => {
         logger.error("Auto-respawn tracking error:", err);
       });
-      
+
       return response.s.map(s => ({ word: s.w, rank: s.r }));
     } catch (error) {
       logger.error("Error fetching suggestions:", error);
-      
+
       // If we get a timeout, the process might be dead - try to restart
       if (error.message.includes('timeout')) {
         logger.warn("Request timeout, process might be unresponsive. Attempting restart...");
@@ -150,7 +150,7 @@ export class TyperClient {
           logger.error("Failed to restart after timeout:", restartErr);
         });
       }
-      
+
       return [];
     }
   }
@@ -174,7 +174,7 @@ export class TyperClient {
   }
 
   private async startProcess(): Promise<void> {
-    const binaryName = process.platform === "win32" ? "typer.exe" : "typer";
+    const binaryName = process.platform === "win32" ? "wordserve.exe" : "wordserve";
     const adapter = this.plugin.app.vault.adapter;
     const vaultPath = "getBasePath" in adapter ? (adapter as { getBasePath(): string }).getBasePath() : "";
     const pluginDir = this.plugin.manifest.dir || ".";
@@ -197,7 +197,7 @@ export class TyperClient {
     this.process.on("exit", (code) => {
       logger.debug(`typer process exited with code ${code}`);
       this.isReady = false;
-      
+
       // Auto-restart if process dies unexpectedly (not during cleanup)
       if (this.process !== null) {
         logger.warn("Typer process died unexpectedly, attempting restart...");
@@ -300,12 +300,12 @@ export class TyperClient {
       this.process = null; // Set to null first to prevent auto-restart
       processToKill.kill();
     }
-    
+
     // Clean up all pending requests
     const pendingCallbacks = Array.from(this.requestCallbacks.entries());
     this.requestCallbacks.clear();
     this.usedRequestIds.clear();
-    
+
     for (const [id, callback] of pendingCallbacks) {
       clearTimeout(callback.timer);
       callback.reject(new Error("TyperClient is shutting down"));

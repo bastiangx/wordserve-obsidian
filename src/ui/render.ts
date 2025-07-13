@@ -375,8 +375,8 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
 				try {
 					const suggestions = await this.client.getSuggestions(context.query);
 					
-					// Cache the results
-					this.cachedSuggestions[query] = suggestions;
+					// Cache the raw (lowercase) results
+					this.cachedSuggestions[query] = suggestions.map(s => ({ ...s, word: s.word.toLowerCase() }));
 					
 					// Apply capitalization
 					const capitalizedIndexes = getCapitalizedIndexes(context.query);
