@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
-  "id": "typer-obsidian",
-  "name": "Typer",
+  "id": "wordserve-obsidian",
+  "name": "WordServe",
   "version": "1.0.0",
   "minAppVersion": "0.15.0",
   "description": "Autocomplete & suggestions | for devs & authors",

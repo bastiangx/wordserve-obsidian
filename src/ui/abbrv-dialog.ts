@@ -1,19 +1,19 @@
 import { App, Modal, TextAreaComponent, TextComponent, ButtonComponent, Notice } from "obsidian";
 import { AbbreviationManager } from "../core/abbrv";
 import { AbbreviationEntry } from "../types";
-import TyperPlugin from "../../main";
+import WordServePlugin from "../../main";
 import { CONFIG } from "../core/config";
 
 /** Modal dialog for managing text abbreviations and shortcuts. */
 export class AbbreviationDialog extends Modal {
   private abbreviationManager: AbbreviationManager;
-  private plugin: TyperPlugin;
+  private plugin: WordServePlugin;
   private entries: AbbreviationEntry[] = [];
   private filteredEntries: AbbreviationEntry[] = [];
   private searchInput: TextComponent;
   private sortBy: "newest" | "oldest" | "alphabetical-asc" | "alphabetical-desc" = "newest";
 
-  constructor(app: App, plugin: TyperPlugin, abbreviationManager: AbbreviationManager) {
+  constructor(app: App, plugin: WordServePlugin, abbreviationManager: AbbreviationManager) {
     super(app);
     this.plugin = plugin;
     this.abbreviationManager = abbreviationManager;
@@ -22,7 +22,7 @@ export class AbbreviationDialog extends Modal {
 	async onOpen() {
 		const { contentEl, modalEl } = this;
 		
-		modalEl.addClass("typer-abbreviation-dialog");
+		modalEl.addClass("wordserve-abbreviation-dialog");
 		
 		modalEl.style.width = "700px";
 		modalEl.style.maxWidth = "90vw";
@@ -35,22 +35,22 @@ export class AbbreviationDialog extends Modal {
 
 		await this.createControls();
 
-		const addButtonContainer = contentEl.createDiv({ cls: "typer-add-button-container" });
+		const addButtonContainer = contentEl.createDiv({ cls: "wordserve-add-button-container" });
 		const addButton = new ButtonComponent(addButtonContainer);
 		addButton
 			.setButtonText("+ Add New Shortcut")
 			.setCta()
 			.onClick(() => this.addNewEntry());
 
-		const entriesContainer = contentEl.createDiv({ cls: "typer-entries-container" });
+		const entriesContainer = contentEl.createDiv({ cls: "wordserve-entries-container" });
     this.refreshEntries(entriesContainer);
   }
 
 	private async createControls() {
 		const { contentEl } = this;
-		const controlsContainer = contentEl.createDiv({ cls: "typer-controls-container" });
+		const controlsContainer = contentEl.createDiv({ cls: "wordserve-controls-container" });
 
-		const searchContainer = controlsContainer.createDiv({ cls: "typer-search-container" });
+		const searchContainer = controlsContainer.createDiv({ cls: "wordserve-search-container" });
 		searchContainer.createEl("label", { text: "Search shortcuts:" });
 		
 		this.searchInput = new TextComponent(searchContainer);
@@ -61,7 +61,7 @@ export class AbbreviationDialog extends Modal {
 				this.renderEntries();
 			});
 
-		const sortContainer = controlsContainer.createDiv({ cls: "typer-sort-container" });
+		const sortContainer = controlsContainer.createDiv({ cls: "wordserve-sort-container" });
 		sortContainer.createEl("label", { text: "Sort by:" });
 		
 		const sortSelect = sortContainer.createEl("select");
@@ -106,7 +106,7 @@ export class AbbreviationDialog extends Modal {
 
   private renderEntries(container?: HTMLElement) {
     const { contentEl } = this;
-    const entriesContainer = container || contentEl.querySelector(".typer-entries-container") as HTMLElement;
+    const entriesContainer = container || contentEl.querySelector(".wordserve-entries-container") as HTMLElement;
     if (!entriesContainer) return;
 
     entriesContainer.empty();
@@ -117,7 +117,7 @@ export class AbbreviationDialog extends Modal {
     if (sortedEntries.length === 0) {
       entriesContainer.createEl("p", { 
         text: "No entries found! Create a new one or refine your search.",
-        cls: "typer-no-entries"
+        cls: "wordserve-no-entries"
       });
       return;
     }
@@ -183,23 +183,23 @@ export class AbbreviationDialog extends Modal {
     // Add character count and validation for shortcut
     shortcutInput.onChange((value) => {
       const isValid = this.validateShortcut(value);
-      shortcutInput.inputEl.removeClass("typer-input-valid", "typer-input-invalid");
-      shortcutInput.inputEl.addClass(isValid ? "typer-input-valid" : "typer-input-invalid");
+      shortcutInput.inputEl.removeClass("wordserve-input-valid", "wordserve-input-invalid");
+      shortcutInput.inputEl.addClass(isValid ? "wordserve-input-valid" : "wordserve-input-invalid");
       
       // Update character count
       const container = shortcutInput.inputEl.parentElement;
       if (container) {
-        let counter = container.querySelector(".typer-char-counter") as HTMLElement;
+        let counter = container.querySelector(".wordserve-char-counter") as HTMLElement;
         if (!counter) {
-          counter = container.createEl("div", { cls: "typer-char-counter" });
+          counter = container.createEl("div", { cls: "wordserve-char-counter" });
         }
         counter.textContent = `${value.length}/${CONFIG.abbreviations.maxShortcutLength}`;
-        counter.removeClass("typer-counter-warning", "typer-counter-error");
+        counter.removeClass("wordserve-counter-warning", "wordserve-counter-error");
         if (value.length > CONFIG.abbreviations.maxShortcutLength * 0.8) {
-          counter.addClass("typer-counter-warning");
+          counter.addClass("wordserve-counter-warning");
         }
         if (value.length > CONFIG.abbreviations.maxShortcutLength) {
-          counter.addClass("typer-counter-error");
+          counter.addClass("wordserve-counter-error");
         }
       }
     });
@@ -207,20 +207,20 @@ export class AbbreviationDialog extends Modal {
     // Add validation for target
     targetTextarea.onChange((value) => {
       const isValid = this.validateTarget(value);
-      targetTextarea.inputEl.removeClass("typer-input-valid", "typer-input-invalid");
-      targetTextarea.inputEl.addClass(isValid ? "typer-input-valid" : "typer-input-invalid");
+      targetTextarea.inputEl.removeClass("wordserve-input-valid", "wordserve-input-invalid");
+      targetTextarea.inputEl.addClass(isValid ? "wordserve-input-valid" : "wordserve-input-invalid");
     });
   }
 
   private createEntryRow(container: HTMLElement, entry: AbbreviationEntry, isNew = false) {
-    const rowContainer = container.createDiv({ cls: "typer-entry-row" });
-    if (isNew) rowContainer.addClass("typer-entry-new");
+    const rowContainer = container.createDiv({ cls: "wordserve-entry-row" });
+    if (isNew) rowContainer.addClass("wordserve-entry-new");
 
     // Input fields container
-    const fieldsContainer = rowContainer.createDiv({ cls: "typer-entry-fields" });
+    const fieldsContainer = rowContainer.createDiv({ cls: "wordserve-entry-fields" });
 
     // Shortcut input
-    const shortcutContainer = fieldsContainer.createDiv({ cls: "typer-shortcut-container" });
+    const shortcutContainer = fieldsContainer.createDiv({ cls: "wordserve-shortcut-container" });
     const shortcutInput = new TextComponent(shortcutContainer);
     shortcutInput
       .setPlaceholder("put your shortcut here")
@@ -228,7 +228,7 @@ export class AbbreviationDialog extends Modal {
       .setDisabled(!isNew);
 
     // Target textarea
-    const targetContainer = fieldsContainer.createDiv({ cls: "typer-target-container" });
+    const targetContainer = fieldsContainer.createDiv({ cls: "wordserve-target-container" });
     const targetTextarea = new TextAreaComponent(targetContainer);
     targetTextarea
       .setPlaceholder("put your full text here")
@@ -241,7 +241,7 @@ export class AbbreviationDialog extends Modal {
     }
 
     // Action buttons container
-    const actionsContainer = rowContainer.createDiv({ cls: "typer-entry-actions" });
+    const actionsContainer = rowContainer.createDiv({ cls: "wordserve-entry-actions" });
 
     if (isNew) {
       // Save and Cancel buttons for new entries
@@ -336,7 +336,7 @@ export class AbbreviationDialog extends Modal {
 
   private addNewEntry() {
     const { contentEl } = this;
-    const entriesContainer = contentEl.querySelector(".typer-entries-container") as HTMLElement;
+    const entriesContainer = contentEl.querySelector(".wordserve-entries-container") as HTMLElement;
     if (!entriesContainer) return;
 
     // Create a temporary entry for the new row

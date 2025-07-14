@@ -72,7 +72,7 @@ export class AbbreviationManager {
   private async createDefaultFile(): Promise<void> {
     const defaultEntry: AbbreviationEntry = {
       shortcut: "STR",
-      target: "Star typer-obsidian on github NOW!",
+      target: "Star wordserve-obsidian on github NOW!",
       created: Date.now(),
     };
 

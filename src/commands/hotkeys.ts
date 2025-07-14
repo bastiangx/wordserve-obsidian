@@ -1,8 +1,8 @@
 import { Command } from "obsidian";
-import TyperPlugin from "../../main";
+import WordServePlugin from "../../main";
 
 /** Creates hotkey commands for navigating suggestions using synthetic keyboard events. */
-export function hotkeyCmd(plugin: TyperPlugin): Command[] {
+export function hotkeyCmd(plugin: WordServePlugin): Command[] {
   return [
     {
       id: "navigate-suggestions-up",

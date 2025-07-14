@@ -9,7 +9,7 @@ import {
 	TFile,
 	Scope,
 } from "obsidian";
-import { TyperClient } from "../core/client";
+import { WordServeClient } from "../core/client";
 import { AbbreviationManager } from "../core/abbrv";
 import { CONFIG } from "../core/config";
 import { Suggestion } from "../types";
@@ -17,11 +17,11 @@ import { capitalizeWord, getCapitalizedIndexes } from "../utils/string";
 import { keybindManager } from "../settings/keybinds";
 import { getCurrentWord, isWordEligible } from "../utils/extract";
 import { setGhostText, clearGhostText } from "../editor/ghost-text-extension";
-import TyperPlugin from "../../main";
+import WordServePlugin from "../../main";
 import { logger } from "../utils/logger";
 
 /** Main suggestion interface that handles word completion and abbreviation expansion. */
-export class TyperSuggest extends EditorSuggest<Suggestion> {
+export class WordServeSuggest extends EditorSuggest<Suggestion> {
   public minChars: number = CONFIG.plugin.minWordLength;
   public maxChars: number = CONFIG.internals.maxChars;
   public limit: number = CONFIG.plugin.maxSuggestions;
@@ -34,8 +34,8 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   private lastSuggestions: Suggestion[] = [];
   private cachedSuggestions: Record<string, Suggestion[]> = {};
   private debounceTimeout: NodeJS.Timeout | null = null;
-  private client: TyperClient;
-  private plugin: TyperPlugin;
+  private client: WordServeClient;
+  private plugin: WordServePlugin;
   public abbreviationManager: AbbreviationManager;
   private requestCounter: number = 0;
 
@@ -46,7 +46,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
   private lastCommittedPosition: EditorPosition | null = null;
   private observer: MutationObserver | null = null;
 
-	constructor(app: App, client: TyperClient, plugin: TyperPlugin) {
+	constructor(app: App, client: WordServeClient, plugin: WordServePlugin) {
 		super(app);
 		this.client = client;
 		this.plugin = plugin;
@@ -294,7 +294,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
 		}
 
 		if (!isWordEligible(currentWord, this.minChars, this.maxChars)) {
-			logger.debug(`[TyperSuggest] Word '${currentWord}' is not eligible.`);
+			logger.debug(`[WordServeSuggest] Word '${currentWord}' is not eligible.`);
 			clearGhostText(editorView);
 			return null;
 		}
@@ -332,11 +332,11 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
 	/** Fetches suggestions from backend or abbreviation manager based on input context. */
 	async getSuggestions(context: EditorSuggestContext): Promise<Suggestion[]> {
 		logger.debug(
-			`[TyperSuggest] Getting suggestions for query: '${context.query}'`
+			`[WordServeSuggest] Getting suggestions for query: '${context.query}'`
 		);
 		if (!context.query || !context.query.trim()) {
 			logger.debug(
-				`[TyperSuggest] Query is empty or whitespace, returning no suggestions.`
+				`[WordServeSuggest] Query is empty or whitespace, returning no suggestions.`
 			);
 			return [];
 		}
@@ -360,7 +360,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
 				
 				// Check cache first
 				if (this.cachedSuggestions[query]) {
-					logger.debug(`[TyperSuggest] Using cached suggestions for: '${query}'`);
+					logger.debug(`[WordServeSuggest] Using cached suggestions for: '${query}'`);
 					const capitalizedIndexes = getCapitalizedIndexes(context.query);
 					const suggestions = this.cachedSuggestions[query].map((s) => ({
 						...s,
@@ -385,10 +385,10 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
 						word: capitalizeWord(s.word, capitalizedIndexes),
 					}));
 					
-					logger.debug(`[TyperSuggest] Fetched ${suggestions.length} suggestions for: '${query}' (request #${this.requestCounter})`);
+					logger.debug(`[WordServeSuggest] Fetched ${suggestions.length} suggestions for: '${query}' (request #${this.requestCounter})`);
 					resolve(capitalizedSuggestions);
 				} catch (error) {
-					logger.error(`[TyperSuggest] Error fetching suggestions for '${query}':`, error);
+					logger.error(`[WordServeSuggest] Error fetching suggestions for '${query}':`, error);
 					resolve([]);
 				}
 			}, this.debounceDelay);
@@ -398,9 +398,9 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
 	/** Renders individual suggestion items with rank indicators and styling. */
 	renderSuggestion(suggestion: Suggestion, el: HTMLElement): void {
 		el.addClass("suggestion-item");
-		const container = el.createDiv({ cls: "typer-suggestion-container" });
+		const container = el.createDiv({ cls: "wordserve-suggestion-container" });
 		const displayRank = this.lastSuggestions.indexOf(suggestion) + 1;
-		const rankEl = container.createSpan({ cls: "typer-suggestion-rank" });
+		const rankEl = container.createSpan({ cls: "wordserve-suggestion-rank" });
 		if (
 			displayRank > 0 &&
 			(this.numberSelectionEnabled || this.showRankingOverride)
@@ -410,7 +410,7 @@ export class TyperSuggest extends EditorSuggest<Suggestion> {
 			rankEl.style.display = "none";
 		}
 
-		const contentEl = container.createSpan({ cls: "typer-suggestion-content" });
+		const contentEl = container.createSpan({ cls: "wordserve-suggestion-content" });
 		if (this.context && this.context.query) {
 			const query = this.context.query;
 			const word = suggestion.word;

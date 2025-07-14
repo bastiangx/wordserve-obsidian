@@ -1,4 +1,4 @@
-export interface TyperPluginSettings {
+export interface WordServePluginSettings {
   minWordLength: number;
   maxSuggestions: number;
   debounceTime: number;

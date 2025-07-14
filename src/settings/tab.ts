@@ -1,15 +1,15 @@
 import { App, Notice, PluginSettingTab, Setting, Modal } from "obsidian";
-import TyperPlugin from "../../main";
+import WordServePlugin from "../../main";
 import { CONFIG } from "../core/config";
 import { AbbreviationDialog } from "../ui/abbrv-dialog";
 import { logger } from "../utils/logger";
 import { keybindManager } from "../settings/keybinds";
 
-/** Settings tab interface for configuring Typer plugin behavior and preferences. */
-export class TyperSettingTab extends PluginSettingTab {
-  plugin: TyperPlugin;
+/** Settings tab interface for configuring WordServe plugin behavior and preferences. */
+export class WordServeSettingTab extends PluginSettingTab {
+  plugin: WordServePlugin;
 
-  constructor(app: App, plugin: TyperPlugin) {
+  constructor(app: App, plugin: WordServePlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -194,7 +194,7 @@ export class TyperSettingTab extends PluginSettingTab {
         dropdown.onChange(async (value) => {
           // Update the keybind manager
           keybindManager.overrideKeybind("select", [value]);
-          // Re-register the scope keybinds in TyperSuggest
+          // Re-register the scope keybinds in WordServeSuggest
           this.plugin.suggestor.updateKeybinds();
           new Notice(`Accept suggestion key changed to ${value}`);
         });
@@ -210,7 +210,7 @@ export class TyperSettingTab extends PluginSettingTab {
         dropdown.onChange(async (value) => {
           // Update the keybind manager
           keybindManager.overrideKeybind("select_and_space", [value]);
-          // Re-register the scope keybinds in TyperSuggest
+          // Re-register the scope keybinds in WordServeSuggest
           this.plugin.suggestor.updateKeybinds();
           new Notice(`Accept suggestion and add space key changed to ${value}`);
         });
@@ -459,63 +459,63 @@ export class TyperSettingTab extends PluginSettingTab {
     const body = document.body;
 
     // Compact mode
-    body.toggleClass("typer-compact-mode", this.plugin.settings.compactMode);
+    body.toggleClass("wordserve-compact-mode", this.plugin.settings.compactMode);
 
     // Font size classes
     body.removeClass(
-      "typer-font-smallest",
-      "typer-font-smaller",
-      "typer-font-small",
-      "typer-font-editor",
-      "typer-font-ui-small",
-      "typer-font-ui-medium",
-      "typer-font-ui-larger"
+      "wordserve-font-smallest",
+      "wordserve-font-smaller",
+      "wordserve-font-small",
+      "wordserve-font-editor",
+      "wordserve-font-ui-small",
+      "wordserve-font-ui-medium",
+      "wordserve-font-ui-larger"
     );
-    body.addClass(`typer-font-${this.plugin.settings.fontSize}`);
+    body.addClass(`wordserve-font-${this.plugin.settings.fontSize}`);
 
     // Font weight classes
     body.removeClass(
-      "typer-weight-thin",
-      "typer-weight-extralight",
-      "typer-weight-light",
-      "typer-weight-normal",
-      "typer-weight-medium",
-      "typer-weight-semibold",
-      "typer-weight-bold",
-      "typer-weight-extrabold",
-      "typer-weight-black"
+      "wordserve-weight-thin",
+      "wordserve-weight-extralight",
+      "wordserve-weight-light",
+      "wordserve-weight-normal",
+      "wordserve-weight-medium",
+      "wordserve-weight-semibold",
+      "wordserve-weight-bold",
+      "wordserve-weight-extrabold",
+      "wordserve-weight-black"
     );
-    body.addClass(`typer-weight-${this.plugin.settings.fontWeight}`);
+    body.addClass(`wordserve-weight-${this.plugin.settings.fontWeight}`);
 
     // Accessibility classes
     body.toggleClass(
-      "typer-bold-suffix",
+      "wordserve-bold-suffix",
       this.plugin.settings.accessibility.boldSuffix
     );
     body.toggleClass(
-      "typer-uppercase",
+      "wordserve-uppercase",
       this.plugin.settings.accessibility.uppercaseSuggestions
     );
 
     // Prefix color intensity
     body.removeClass(
-      "typer-prefix-normal",
-      "typer-prefix-muted",
-      "typer-prefix-faint",
-      "typer-prefix-accent"
+      "wordserve-prefix-normal",
+      "wordserve-prefix-muted",
+      "wordserve-prefix-faint",
+      "wordserve-prefix-accent"
     );
     body.addClass(
-      `typer-prefix-${this.plugin.settings.accessibility.prefixColorIntensity}`
+      `wordserve-prefix-${this.plugin.settings.accessibility.prefixColorIntensity}`
     );
 
     // Ghost text color intensity
     body.removeClass(
-      "typer-ghost-normal",
-      "typer-ghost-muted",
-      "typer-ghost-faint",
-      "typer-ghost-accent"
+      "wordserve-ghost-normal",
+      "wordserve-ghost-muted",
+      "wordserve-ghost-faint",
+      "wordserve-ghost-accent"
     );
-    const ghostClass = `typer-ghost-${this.plugin.settings.accessibility.ghostTextColorIntensity}`;
+    const ghostClass = `wordserve-ghost-${this.plugin.settings.accessibility.ghostTextColorIntensity}`;
     body.addClass(ghostClass);
   }
 

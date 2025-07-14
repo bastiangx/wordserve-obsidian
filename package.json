@@ -1,5 +1,5 @@
 {
-  "name": "typer-obsidian",
+  "name": "wordserve-obsidian",
   "version": "1.0.0",
   "description": "Fast & Minimal prefix-based suggestions in Obsidian editor",
   "main": "main.js",

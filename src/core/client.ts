@@ -11,14 +11,15 @@ import {
   DictionaryResponse,
   Suggestion,
   BackendResponse,
-  TyperPluginSettings,
+  WordServePluginSettings,
   CompletionError,
 } from "../types";
 import { logger } from "../utils/logger";
 import { AutoRespawnManager } from "../utils/autores";
+import { WordServeDownloader } from "../downloader";
 
-interface TyperPlugin extends Plugin {
-  settings: TyperPluginSettings;
+interface WordServePlugin extends Plugin {
+  settings: WordServePluginSettings;
 }
 
 const generateId = () => {
@@ -29,15 +30,16 @@ const generateId = () => {
 };
 
 /** Handles communication with the backend process via MessagePack. */
-export class TyperClient {
+export class WordServeClient {
   private process: child_process.ChildProcess | null = null;
-  private plugin: TyperPlugin;
+  private plugin: WordServePlugin;
   private isReady: boolean = false;
   private requestCallbacks = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timer: NodeJS.Timeout }>();
   private autoRespawnManager: AutoRespawnManager;
   private usedRequestIds = new Set<string>();
+  private isShuttingDown: boolean = false;
 
-  constructor(plugin: TyperPlugin) {
+  constructor(plugin: WordServePlugin) {
     this.plugin = plugin;
     this.autoRespawnManager = new AutoRespawnManager(
       plugin.settings.autorespawn,
@@ -48,7 +50,7 @@ export class TyperClient {
   private sendRequest<T extends BackendResponse>(request: CompletionRequest | DictionaryRequest, timeout = 3000): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.process || !this.process.stdin) {
-        return reject(new Error("Typer process is not running."));
+        return reject(new Error("WordServe process is not running."));
       }
 
       let id = generateId();
@@ -105,7 +107,7 @@ export class TyperClient {
   /** Fetches word suggestions from the backend. */
   async getSuggestions(query: string): Promise<Suggestion[]> {
     if (!this.isReady) {
-      logger.warn("TyperClient not ready, attempting to reinitialize...");
+      logger.warn("WordServeClient not ready, attempting to reinitialize...");
       const success = await this.initialize();
       if (!success) {
         return [];
@@ -162,12 +164,25 @@ export class TyperClient {
     }
 
     try {
+      // First, ensure WordServe binary is downloaded and available
+      const adapter = this.plugin.app.vault.adapter;
+      const vaultPath = "getBasePath" in adapter ? (adapter as { getBasePath(): string }).getBasePath() : "";
+      const pluginDir = this.plugin.manifest.dir || ".";
+      const pluginPath = path.join(vaultPath, pluginDir);
+      
+      const downloader = new WordServeDownloader(pluginPath);
+      const downloadResult = await downloader.downloadAndInstall();
+      
+      if (!downloadResult.success) {
+        throw new Error(downloadResult.error || "Failed to download WordServe binary");
+      }
+      
       await this.startProcess();
       this.isReady = true;
-      logger.debug("TyperClient initialized successfully.");
+      logger.debug("WordServeClient initialized successfully.");
       return true;
     } catch (error) {
-      logger.error("Failed to initialize TyperClient:", error);
+      logger.error("Failed to initialize WordServeClient:", error);
       this.cleanup();
       return false;
     }
@@ -184,33 +199,33 @@ export class TyperClient {
     try {
       await fs.promises.access(binaryPath, fs.constants.F_OK);
     } catch {
-      throw new Error(`Typer binary not found at ${binaryPath}`);
+      throw new Error(`WordServe binary not found at ${binaryPath}`);
     }
 
     const args = [`--data=${binaryDir}`];
     if (this.plugin.settings.debugMode) {
-      args.push('-d');
+      args.push('-v');
     }
 
     this.process = child_process.spawn(binaryPath, args, { stdio: ["pipe", "pipe", "pipe"] });
 
     this.process.on("exit", (code) => {
-      logger.debug(`typer process exited with code ${code}`);
+      logger.debug(`wordserve process exited with code ${code}`);
       this.isReady = false;
 
-      // Auto-restart if process dies unexpectedly (not during cleanup)
-      if (this.process !== null) {
-        logger.warn("Typer process died unexpectedly, attempting restart...");
+      // Auto-restart if process dies unexpectedly (not during cleanup or shutdown)
+      if (this.process !== null && !this.isShuttingDown) {
+        logger.warn("WordServe process died unexpectedly, attempting restart...");
         setTimeout(() => {
           this.restart().catch(err => {
-            logger.error("Failed to auto-restart typer process:", err);
+            logger.error("Failed to auto-restart wordserve process:", err);
           });
         }, 1000);
       }
     });
 
     this.process.on("error", (error) => {
-      logger.error("Typer process error:", error);
+      logger.error("WordServe process error:", error);
       this.isReady = false;
     });
 
@@ -282,7 +297,7 @@ export class TyperClient {
 
   /** Restarts the backend process to recover from errors or refresh state. */
   async restart(): Promise<boolean> {
-    logger.debug("Restarting typer client");
+    logger.debug("Restarting wordserve client");
     this.cleanup();
     await new Promise(resolve => setTimeout(resolve, 100));
     const success = await this.initialize();
@@ -294,6 +309,7 @@ export class TyperClient {
 
   /** Cleans up process and resources when the client is shutting down. */
   cleanup() {
+    this.isShuttingDown = true;
     this.isReady = false;
     if (this.process) {
       const processToKill = this.process;
@@ -308,11 +324,11 @@ export class TyperClient {
 
     for (const [id, callback] of pendingCallbacks) {
       clearTimeout(callback.timer);
-      callback.reject(new Error("TyperClient is shutting down"));
+      callback.reject(new Error("WordServeClient is shutting down"));
     }
   }
 
-  async updateConfigFile(updates: Partial<TyperPluginSettings>): Promise<boolean> {
+  async updateConfigFile(updates: Partial<WordServePluginSettings>): Promise<boolean> {
     return true;
   }
 

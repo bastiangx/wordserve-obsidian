@@ -1,19 +1,19 @@
 import { Extension } from "@codemirror/state";
 import { Plugin } from "obsidian";
-import { TyperClient } from "./src/core/client";
-import { TyperSuggest } from "./src/ui/render";
+import { WordServeClient } from "./src/core/client";
+import { WordServeSuggest } from "./src/ui/render";
 import { DEFAULT_SETTINGS } from "./src/core/config";
-import { TyperPluginSettings } from "./src/types";
-import { TyperSettingTab } from "src/settings/tab";
+import { WordServePluginSettings } from "./src/types";
+import { WordServeSettingTab } from "src/settings/tab";
 import { logger } from "./src/utils/logger";
 import { hotkeyCmd } from "./src/commands/hotkeys";
 import { ghostTextState } from "./src/editor/ghost-text-extension";
 
 /** Main plugin class that coordinates text suggestions & abbreviations */
-export default class TyperPlugin extends Plugin {
-  settings: TyperPluginSettings;
-  client: TyperClient;
-  suggestor: TyperSuggest;
+export default class WordServePlugin extends Plugin {
+  settings: WordServePluginSettings;
+  client: WordServeClient;
+  suggestor: WordServeSuggest;
   statusBarEl: HTMLElement;
   editorExtensions: Extension[] = [];
 
@@ -33,8 +33,8 @@ export default class TyperPlugin extends Plugin {
       this.suggestor.smartBackspace = this.settings.smartBackspace;
     };
 
-    this.client = new TyperClient(this);
-    this.suggestor = new TyperSuggest(this.app, this.client, this);
+    this.client = new WordServeClient(this);
+    this.suggestor = new WordServeSuggest(this.app, this.client, this);
 
     updateSuggestorSettings();
     this.registerEditorSuggest(this.suggestor);
@@ -42,10 +42,10 @@ export default class TyperPlugin extends Plugin {
     // For DBG mode only
     if (this.settings.debugMode) {
       this.statusBarEl = this.addStatusBarItem();
-      this.statusBarEl.setText("Typer: Ready");
+      this.statusBarEl.setText("WordServe: Ready");
     }
 
-    this.addSettingTab(new TyperSettingTab(this.app, this));
+    this.addSettingTab(new WordServeSettingTab(this.app, this));
 
     // Set in obsidian's native binder
     const hotkeyCommands = hotkeyCmd(this);
@@ -60,21 +60,21 @@ export default class TyperPlugin extends Plugin {
       .then((isReady) => {
         if (this.settings.debugMode && this.statusBarEl) {
           if (isReady) {
-            this.statusBarEl.setText("Typer: Active");
+            this.statusBarEl.setText("WordServe: Active");
           } else {
-            this.statusBarEl.setText("Typer: Inactive");
+            this.statusBarEl.setText("WordServe: Inactive");
           }
         }
         logger.debug(
-          `Typer loaded successfully - Core connection: ${isReady ? "Active" : "Inactive"
+          `WordServe loaded successfully - Core connection: ${isReady ? "Active" : "Inactive"
           }`
         );
       })
       .catch((error) => {
         if (this.settings.debugMode && this.statusBarEl) {
-          this.statusBarEl.setText("Typer: Error");
+          this.statusBarEl.setText("WordServe: Error");
         }
-        logger.error("--FATAL-- Typer failed to initialize", error);
+        logger.error("--FATAL-- WordServe failed to initialize", error);
       });
   }
 
@@ -136,60 +136,60 @@ export default class TyperPlugin extends Plugin {
       accessibility: this.settings.accessibility,
     });
 
-    body.toggleClass("typer-compact-mode", this.settings.compactMode);
+    body.toggleClass("wordserve-compact-mode", this.settings.compactMode);
 
     body.removeClass(
-      "typer-font-smallest",
-      "typer-font-smaller",
-      "typer-font-small",
-      "typer-font-editor",
-      "typer-font-ui-small",
-      "typer-font-ui-medium",
-      "typer-font-ui-larger"
+      "wordserve-font-smallest",
+      "wordserve-font-smaller",
+      "wordserve-font-small",
+      "wordserve-font-editor",
+      "wordserve-font-ui-small",
+      "wordserve-font-ui-medium",
+      "wordserve-font-ui-larger"
     );
-    body.addClass(`typer-font-${this.settings.fontSize}`);
+    body.addClass(`wordserve-font-${this.settings.fontSize}`);
 
     // Font weight classes
     body.removeClass(
-      "typer-weight-thin",
-      "typer-weight-extralight",
-      "typer-weight-light",
-      "typer-weight-normal",
-      "typer-weight-medium",
-      "typer-weight-semibold",
-      "typer-weight-bold",
-      "typer-weight-extrabold",
-      "typer-weight-black"
+      "wordserve-weight-thin",
+      "wordserve-weight-extralight",
+      "wordserve-weight-light",
+      "wordserve-weight-normal",
+      "wordserve-weight-medium",
+      "wordserve-weight-semibold",
+      "wordserve-weight-bold",
+      "wordserve-weight-extrabold",
+      "wordserve-weight-black"
     );
-    body.addClass(`typer-weight-${this.settings.fontWeight}`);
+    body.addClass(`wordserve-weight-${this.settings.fontWeight}`);
 
     body.toggleClass(
-      "typer-bold-suffix",
+      "wordserve-bold-suffix",
       this.settings.accessibility.boldSuffix
     );
     body.toggleClass(
-      "typer-uppercase",
+      "wordserve-uppercase",
       this.settings.accessibility.uppercaseSuggestions
     );
 
     body.removeClass(
-      "typer-prefix-normal",
-      "typer-prefix-muted",
-      "typer-prefix-faint",
-      "typer-prefix-accent"
+      "wordserve-prefix-normal",
+      "wordserve-prefix-muted",
+      "wordserve-prefix-faint",
+      "wordserve-prefix-accent"
     );
     body.addClass(
-      `typer-prefix-${this.settings.accessibility.prefixColorIntensity}`
+      `wordserve-prefix-${this.settings.accessibility.prefixColorIntensity}`
     );
 
     body.removeClass(
-      "typer-ghost-normal",
-      "typer-ghost-muted",
-      "typer-ghost-faint",
-      "typer-ghost-accent"
+      "wordserve-ghost-normal",
+      "wordserve-ghost-muted",
+      "wordserve-ghost-faint",
+      "wordserve-ghost-accent"
     );
     body.addClass(
-      `typer-ghost-${this.settings.accessibility.ghostTextColorIntensity}`
+      `wordserve-ghost-${this.settings.accessibility.ghostTextColorIntensity}`
     );
   }
 
@@ -198,7 +198,7 @@ export default class TyperPlugin extends Plugin {
     if (this.settings.debugMode) {
       if (!this.statusBarEl) {
         this.statusBarEl = this.addStatusBarItem();
-        this.statusBarEl.setText("Typer: Ready");
+        this.statusBarEl.setText("WordServe: Ready");
       }
     } else {
       if (this.statusBarEl) {
