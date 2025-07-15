@@ -451,7 +451,6 @@ export class WordServeSettingTab extends PluginSettingTab {
             }
           })
       );
-
     this.createDebugEventsSection(containerEl);
   }
 

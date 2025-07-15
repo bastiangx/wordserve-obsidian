@@ -78,11 +78,17 @@ export interface CompletionError {
   c: number; // code
 }
 
+// Config management types
+export interface ConfigRequest {
+  id?: string;
+  action: "rebuild_config" | "get_config_path";
+}
+
 export interface ConfigResponse {
   id: string;
   status: string;
   error?: string;
-  available_chunks?: number;
+  config_path?: string;
 }
 
 // Dictionary management types

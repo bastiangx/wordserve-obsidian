@@ -2,21 +2,22 @@ import { Plugin } from "obsidian";
 import * as child_process from "child_process";
 import * as path from "path";
 import * as fs from "fs";
-import { encode, decode, decodeMulti } from "@msgpack/msgpack";
+import { encode, decodeMulti } from "@msgpack/msgpack";
 import {
   CompletionRequest,
   CompletionResponse,
+  ConfigRequest,
   ConfigResponse,
   DictionaryRequest,
   DictionaryResponse,
   Suggestion,
   BackendResponse,
   WordServePluginSettings,
-  CompletionError,
 } from "../types";
 import { logger } from "../utils/logger";
 import { AutoRespawnManager } from "../utils/autores";
 import { WordServeDownloader } from "./downloader";
+import { ConfigManager, ConfigUpdateRequest } from "./config-manager";
 
 interface WordServePlugin extends Plugin {
   settings: WordServePluginSettings;
@@ -25,16 +26,23 @@ interface WordServePlugin extends Plugin {
 const generateId = () => {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2);
-  const counter = (generateId as any).counter = ((generateId as any).counter || 0) + 1;
+  const counter = ((generateId as any).counter =
+    ((generateId as any).counter || 0) + 1);
   return `${timestamp}-${random}-${counter}`;
 };
 
-/** Handles communication with the backend process via MessagePack. */
 export class WordServeClient {
   private process: child_process.ChildProcess | null = null;
   private plugin: WordServePlugin;
   private isReady: boolean = false;
-  private requestCallbacks = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void; timer: NodeJS.Timeout }>();
+  private requestCallbacks = new Map<
+    string,
+    {
+      resolve: (value: any) => void;
+      reject: (reason?: any) => void;
+      timer: NodeJS.Timeout;
+    }
+  >();
   private autoRespawnManager: AutoRespawnManager;
   private usedRequestIds = new Set<string>();
   private isShuttingDown: boolean = false;
@@ -43,6 +51,7 @@ export class WordServeClient {
   private restartAttempts = 0;
   private maxRestartAttempts = 5;
   private restartBackoffMs = 1000;
+  private configManager: ConfigManager;
 
   constructor(plugin: WordServePlugin) {
     this.plugin = plugin;
@@ -50,9 +59,13 @@ export class WordServeClient {
       plugin.settings.autorespawn,
       () => this.restart()
     );
+    this.configManager = new ConfigManager(this);
   }
 
-  private sendRequest<T extends BackendResponse>(request: CompletionRequest | DictionaryRequest, timeout = 3000): Promise<T> {
+  private sendRequest<T extends BackendResponse>(
+    request: CompletionRequest | DictionaryRequest | ConfigRequest,
+    timeout = 3000
+  ): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.process || !this.process.stdin) {
         return reject(new Error("WordServe process is not running."));
@@ -75,8 +88,9 @@ export class WordServeClient {
       this.usedRequestIds.add(id);
       request.id = id;
 
-      // Use shorter timeout for suggestion requests to improve responsiveness
-      const actualTimeout = request.hasOwnProperty('p') ? Math.min(timeout, 1500) : timeout;
+      const actualTimeout = request.hasOwnProperty("p")
+        ? Math.min(timeout, 1500)
+        : timeout;
 
       const timer = setTimeout(() => {
         this.cleanupRequest(id);
@@ -114,13 +128,13 @@ export class WordServeClient {
 
   private cleanupOldRequestIds(): void {
     const currentTime = Date.now();
-    const oldIds = Array.from(this.usedRequestIds).filter(id => {
-      const timestampPart = id.split('-')[0];
+    const oldIds = Array.from(this.usedRequestIds).filter((id) => {
+      const timestampPart = id.split("-")[0];
       const timestamp = parseInt(timestampPart, 36);
       // 5min
-      return (currentTime - timestamp) > 300000;
+      return currentTime - timestamp > 300000;
     });
-    oldIds.forEach(id => this.usedRequestIds.delete(id));
+    oldIds.forEach((id) => this.usedRequestIds.delete(id));
     if (oldIds.length > 0) {
       logger.debug(`Cleaned up ${oldIds.length} old request IDs`);
     }
@@ -144,26 +158,33 @@ export class WordServeClient {
     }
 
     try {
-      const maxSuggestions = Math.max(1, this.plugin.settings.maxSuggestions || 20);
+      const maxSuggestions = Math.max(
+        1,
+        this.plugin.settings.maxSuggestions || 20
+      );
       const request: CompletionRequest = {
         p: query,
         l: maxSuggestions,
       };
       if (maxSuggestions <= 0) {
-        logger.warn(`Invalid maxSuggestions value: ${this.plugin.settings.maxSuggestions}, using default: 20`);
+        logger.warn(
+          `Invalid maxSuggestions value: ${this.plugin.settings.maxSuggestions}, using default: 20`
+        );
       }
       const response = await this.sendRequest<CompletionResponse>(request);
-      this.autoRespawnManager.onSuggestionRequest().catch(err => {
+      this.autoRespawnManager.onSuggestionRequest().catch((err) => {
         logger.error("Auto-respawn tracking error:", err);
       });
 
-      return response.s.map(s => ({ word: s.w, rank: s.r }));
+      return response.s.map((s) => ({ word: s.w, rank: s.r }));
     } catch (error) {
       logger.error("Error fetching suggestions:", error);
       // If we get a timeout, the process might be dead - try to restart
-      if (error.message.includes('timeout')) {
-        logger.warn("Request timeout, process might be unresponsive. Attempting restart...");
-        this.restart().catch(restartErr => {
+      if (error.message.includes("timeout")) {
+        logger.warn(
+          "Request timeout, process might be unresponsive. Attempting restart..."
+        );
+        this.restart().catch((restartErr) => {
           logger.error("Failed to restart after timeout:", restartErr);
         });
       }
@@ -195,7 +216,10 @@ export class WordServeClient {
   private async doInitialize(): Promise<boolean> {
     try {
       const adapter = this.plugin.app.vault.adapter;
-      const vaultPath = "getBasePath" in adapter ? (adapter as { getBasePath(): string }).getBasePath() : "";
+      const vaultPath =
+        "getBasePath" in adapter
+          ? (adapter as { getBasePath(): string }).getBasePath()
+          : "";
       const pluginDir = this.plugin.manifest.dir || ".";
       const pluginPath = path.join(vaultPath, pluginDir);
 
@@ -203,10 +227,21 @@ export class WordServeClient {
       const downloadResult = await downloader.downloadAndInstall();
 
       if (!downloadResult.success) {
-        throw new Error(downloadResult.error || "Failed to download WordServe binary");
+        throw new Error(
+          downloadResult.error || "Failed to download WordServe binary"
+        );
       }
 
       await this.startProcess();
+
+      setTimeout(async () => {
+        try {
+          await this.configManager.ensureConfigLoaded();
+        } catch (error) {
+          logger.warn("Failed to load TOML config:", error);
+        }
+      }, 1000);
+
       this.isReady = true;
       logger.debug("WordServeClient initialized successfully.");
       return true;
@@ -218,9 +253,13 @@ export class WordServeClient {
   }
 
   private async startProcess(): Promise<void> {
-    const binaryName = process.platform === "win32" ? "wordserve.exe" : "wordserve";
+    const binaryName =
+      process.platform === "win32" ? "wordserve.exe" : "wordserve";
     const adapter = this.plugin.app.vault.adapter;
-    const vaultPath = "getBasePath" in adapter ? (adapter as { getBasePath(): string }).getBasePath() : "";
+    const vaultPath =
+      "getBasePath" in adapter
+        ? (adapter as { getBasePath(): string }).getBasePath()
+        : "";
     const pluginDir = this.plugin.manifest.dir || ".";
     const binaryDir = path.join(vaultPath, pluginDir, "data");
     const binaryPath = path.join(vaultPath, pluginDir, binaryName);
@@ -233,10 +272,12 @@ export class WordServeClient {
 
     const args = [`--data=${binaryDir}`];
     if (this.plugin.settings.debugMode) {
-      args.push('-v');
+      args.push("-v");
     }
 
-    this.process = child_process.spawn(binaryPath, args, { stdio: ["pipe", "pipe", "pipe"] });
+    this.process = child_process.spawn(binaryPath, args, {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
 
     this.process.on("exit", (code) => {
       logger.debug(`wordserve process exited with code ${code}`);
@@ -244,18 +285,23 @@ export class WordServeClient {
 
       if (this.process !== null && !this.isShuttingDown) {
         if (this.restartAttempts < this.maxRestartAttempts) {
-          const backoffDelay = this.restartBackoffMs * Math.pow(2, this.restartAttempts);
+          const backoffDelay =
+            this.restartBackoffMs * Math.pow(2, this.restartAttempts);
           this.restartAttempts++;
 
-          logger.warn(`WordServe process died unexpectedly, attempting restart ${this.restartAttempts}/${this.maxRestartAttempts} in ${backoffDelay}ms...`);
+          logger.warn(
+            `WordServe process died unexpectedly, attempting restart ${this.restartAttempts}/${this.maxRestartAttempts} in ${backoffDelay}ms...`
+          );
 
           setTimeout(() => {
-            this.restart().catch(err => {
+            this.restart().catch((err) => {
               logger.error("Failed to auto-restart wordserve process:", err);
             });
           }, backoffDelay);
         } else {
-          logger.error(`WordServe process restart limit reached (${this.maxRestartAttempts}). Manual restart required.`);
+          logger.error(
+            `WordServe process restart limit reached (${this.maxRestartAttempts}). Manual restart required.`
+          );
         }
       }
     });
@@ -296,7 +342,8 @@ export class WordServeClient {
     const callback = this.requestCallbacks.get(response.id);
     if (callback) {
       clearTimeout(callback.timer);
-      if ('e' in response && response.e) { // Error response
+
+      if ("e" in response && response.e) {
         callback.reject(new Error(response.e));
       } else {
         callback.resolve(response);
@@ -316,23 +363,24 @@ export class WordServeClient {
     return this.sendRequest<ConfigResponse>(request, 5000);
   }
 
-  /** Gets current dictionary information including loaded chunks and statistics. */
   async getDictionaryInfo(): Promise<DictionaryResponse> {
     const request: DictionaryRequest = { action: "get_info" };
     return this.sendRequest<DictionaryResponse>(request);
   }
 
-  /** Gets available dictionary size options from the backend. */
   async getDictionaryOptions(): Promise<DictionaryResponse> {
     const request: DictionaryRequest = { action: "get_options" };
     return this.sendRequest<DictionaryResponse>(request);
   }
 
-  /** Restarts the backend process to recover from errors or refresh state. */
+  async sendConfigRequest(request: ConfigRequest): Promise<ConfigResponse> {
+    return this.sendRequest<ConfigResponse>(request);
+  }
+
   async restart(): Promise<boolean> {
     logger.debug("Restarting wordserve client");
     this.cleanup();
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
     const success = await this.initialize();
     if (success) {
       this.autoRespawnManager.reset();
@@ -341,7 +389,6 @@ export class WordServeClient {
     return success;
   }
 
-  /** Cleans up process and resources when the client is shutting down. */
   cleanup() {
     this.isShuttingDown = true;
     this.isReady = false;
@@ -373,14 +420,45 @@ export class WordServeClient {
     this.initializationPromise = null;
   }
 
-  async updateConfigFile(updates: Partial<WordServePluginSettings>): Promise<boolean> {
-    return true;
+  async updateConfigFile(
+    updates: Partial<WordServePluginSettings>
+  ): Promise<boolean> {
+    const configUpdates: ConfigUpdateRequest = {};
+
+    if (updates.minPrefix !== undefined) {
+      configUpdates.minPrefix = updates.minPrefix;
+    }
+
+    if (updates.maxSuggestions !== undefined) {
+      configUpdates.maxLimit = updates.maxSuggestions;
+    }
+
+    return await this.configManager.updateConfig(configUpdates);
   }
-  updateAutoRespawnConfig(config: { enabled: boolean; requestThreshold: number; timeThresholdMinutes: number }): void {
+  updateAutoRespawnConfig(config: {
+    enabled: boolean;
+    requestThreshold: number;
+    timeThresholdMinutes: number;
+  }): void {
     this.autoRespawnManager.updateConfig(config);
   }
 
-  getAutoRespawnStats(): { requestCount: number; minutesSinceLastRespawn: number } {
+  getConfigManager() {
+    return this.configManager;
+  }
+
+  getCachedConfig() {
+    return this.configManager.getCachedConfig();
+  }
+
+  async loadConfig() {
+    return await this.configManager.loadConfig();
+  }
+
+  getAutoRespawnStats(): {
+    requestCount: number;
+    minutesSinceLastRespawn: number;
+  } {
     return this.autoRespawnManager.getStats();
   }
 
@@ -388,9 +466,9 @@ export class WordServeClient {
     this.cleanupOldRequestIds();
     const now = Date.now();
     for (const [id, callback] of this.requestCallbacks.entries()) {
-      const timestampPart = id.split('-')[0];
+      const timestampPart = id.split("-")[0];
       const timestamp = parseInt(timestampPart, 36);
-      if ((now - timestamp) > 300000) {
+      if (now - timestamp > 300000) {
         clearTimeout(callback.timer);
         callback.reject(new Error("Request cleaned up due to age"));
         this.requestCallbacks.delete(id);
