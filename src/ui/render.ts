@@ -1,13 +1,13 @@
 import { EditorView } from "@codemirror/view";
 import {
-	App,
-	Editor,
-	EditorPosition,
-	EditorSuggest,
-	EditorSuggestContext,
-	EditorSuggestTriggerInfo,
-	TFile,
-	Scope,
+  App,
+  Editor,
+  EditorPosition,
+  EditorSuggest,
+  EditorSuggestContext,
+  EditorSuggestTriggerInfo,
+  TFile,
+  Scope,
 } from "obsidian";
 import { WordServeClient } from "../core/client";
 import { AbbreviationManager } from "../core/abbrv";
@@ -33,6 +33,8 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
   private lastWord = "";
   private lastSuggestions: Suggestion[] = [];
   private cachedSuggestions: Record<string, Suggestion[]> = {};
+  private cacheAccessOrder: string[] = [];
+  private maxCacheSize = 100;
   private debounceTimeout: NodeJS.Timeout | null = null;
   private client: WordServeClient;
   private plugin: WordServePlugin;
@@ -46,87 +48,112 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
   private lastCommittedPosition: EditorPosition | null = null;
   private observer: MutationObserver | null = null;
 
-	constructor(app: App, client: WordServeClient, plugin: WordServePlugin) {
-		super(app);
-		this.client = client;
-		this.plugin = plugin;
-		this.abbreviationManager = new AbbreviationManager(app, plugin);
-		
-		this.scope.register([], "Tab", this.handleKeybinds.bind(this));
-		this.scope.register([], "Enter", this.handleKeybinds.bind(this));
-		this.scope.register([], "ArrowUp", this.handleKeybinds.bind(this));
-		this.scope.register([], "ArrowDown", this.handleKeybinds.bind(this));
-		this.scope.register([], "Escape", this.handleKeybinds.bind(this));
-		
-		for (let i = 1; i <= 9; i++) {
-			this.scope.register([], i.toString(), this.handleKeybinds.bind(this));
-		}
+  constructor(app: App, client: WordServeClient, plugin: WordServePlugin) {
+    super(app);
+    this.client = client;
+    this.plugin = plugin;
+    this.abbreviationManager = new AbbreviationManager(app, plugin);
 
-    this.observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (
-          mutation.type === "attributes" &&
-          mutation.attributeName === "class"
-        ) {
-          const target = mutation.target as HTMLElement;
-          if (target.classList.contains("is-selected")) {
-            const suggestionsContainer = (this as any).suggestions?.containerEl;
+    this.scope.register([], "Tab", this.handleKeybinds.bind(this));
+    this.scope.register([], "Enter", this.handleKeybinds.bind(this));
+    this.scope.register([], "ArrowUp", this.handleKeybinds.bind(this));
+    this.scope.register([], "ArrowDown", this.handleKeybinds.bind(this));
+    this.scope.register([], "Escape", this.handleKeybinds.bind(this));
+
+    for (let i = 1; i <= 9; i++) {
+      this.scope.register([], i.toString(), this.handleKeybinds.bind(this));
+    }
+    try {
+      this.observer = new MutationObserver((mutations) => {
+        try {
+          for (const mutation of mutations) {
             if (
-              suggestionsContainer &&
-              target.parentElement === suggestionsContainer
+              mutation.type === "attributes" &&
+              mutation.attributeName === "class"
             ) {
-              const index = Array.from(suggestionsContainer.children).indexOf(
-                target
-              );
-              if (index !== -1 && this.selectedIndex !== index) {
-                this.selectedIndex = index;
-                this.updateGhostText();
+              const target = mutation.target as HTMLElement;
+              if (target.classList.contains("is-selected")) {
+                const suggestionsContainer = (this as any).suggestions?.containerEl;
+                if (
+                  suggestionsContainer &&
+                  target.parentElement === suggestionsContainer
+                ) {
+                  const index = Array.from(suggestionsContainer.children).indexOf(
+                    target
+                  );
+                  if (index !== -1 && this.selectedIndex !== index) {
+                    this.selectedIndex = index;
+                    this.updateGhostText();
+                  }
+                }
               }
             }
           }
+        } catch (error) {
+          logger.error("Error in MutationObserver callback:", error);
         }
-      }
-    });
+      });
+    } catch (error) {
+      logger.error("Failed to create MutationObserver:", error);
+      this.observer = null;
+    }
   }
 
   open(): void {
     super.open();
-    if ((this as any).suggestions?.containerEl) {
-      this.observer?.observe((this as any).suggestions.containerEl, {
-        attributes: true,
-        subtree: true,
-        attributeFilter: ["class"],
-      });
+    if ((this as any).suggestions?.containerEl && this.observer) {
+      try {
+        this.observer.observe((this as any).suggestions.containerEl, {
+          attributes: true,
+          subtree: true,
+          attributeFilter: ["class"],
+        });
+      } catch (error) {
+        logger.error("Failed to start MutationObserver:", error);
+      }
     }
   }
 
   close(): void {
     super.close();
-    this.observer?.disconnect();
+
+    if (this.observer) {
+      try {
+        this.observer.disconnect();
+      } catch (error) {
+        logger.error("Error disconnecting MutationObserver:", error);
+      }
+    }
+
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+      this.debounceTimeout = null;
+    }
+
     if (this.context) {
       clearGhostText((this.context.editor as any).cm);
     }
   }
 
-	/** Returns the last fetched suggestions for external access. */
+  /** Returns the last fetched suggestions for external */
   public getLastSuggestions(): Suggestion[] {
     return this.lastSuggestions;
   }
 
-	/** Updates keybind scope when settings change to reflect new key mappings. */
-	public updateKeybinds(): void {
-		this.scope = new Scope();
-		
-		this.scope.register([], keybindManager.getKeysForAction("select")[0] || "Enter", this.handleKeybinds.bind(this));
-		this.scope.register([], keybindManager.getKeysForAction("select_and_space")[0] || "Tab", this.handleKeybinds.bind(this));
-		this.scope.register([], "ArrowUp", this.handleKeybinds.bind(this));
-		this.scope.register([], "ArrowDown", this.handleKeybinds.bind(this));
-		this.scope.register([], "Escape", this.handleKeybinds.bind(this));
-		
-		for (let i = 1; i <= 9; i++) {
-			this.scope.register([], i.toString(), this.handleKeybinds.bind(this));
-		}
-	}
+  /** Updates keybind scope when settings change */
+  public updateKeybinds(): void {
+    this.scope = new Scope();
+
+    this.scope.register([], keybindManager.getKeysForAction("select")[0] || "Enter", this.handleKeybinds.bind(this));
+    this.scope.register([], keybindManager.getKeysForAction("select_and_space")[0] || "Tab", this.handleKeybinds.bind(this));
+    this.scope.register([], "ArrowUp", this.handleKeybinds.bind(this));
+    this.scope.register([], "ArrowDown", this.handleKeybinds.bind(this));
+    this.scope.register([], "Escape", this.handleKeybinds.bind(this));
+
+    for (let i = 1; i <= 9; i++) {
+      this.scope.register([], i.toString(), this.handleKeybinds.bind(this));
+    }
+  }
 
   private handleKeybinds(evt: KeyboardEvent): void {
     if (!this.context) return;
@@ -239,222 +266,220 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     }
   }
 
-	/** Determines if suggestions should be shown based on cursor position and word context. */
-	onTrigger(
-		cursor: EditorPosition,
-		editor: Editor,
-		file: TFile | null
-	): EditorSuggestTriggerInfo | null {
-		this.selectedIndex = 0;
-		const editorView = (editor as any).cm as EditorView;
+  /** if suggestions should be shown based on cursor position and word context. */
+  onTrigger(
+    cursor: EditorPosition,
+    editor: Editor,
+    file: TFile | null
+  ): EditorSuggestTriggerInfo | null {
+    this.selectedIndex = 0;
+    const editorView = (editor as any).cm as EditorView;
 
-		if (!file) {
-			clearGhostText(editorView);
-			return null;
-		}
+    if (!file) {
+      clearGhostText(editorView);
+      return null;
+    }
 
-		const wordContext = getCurrentWord(editor, cursor);
-		if (!wordContext) {
-			clearGhostText(editorView);
-			return null;
-		}
+    const wordContext = getCurrentWord(editor, cursor);
+    if (!wordContext) {
+      clearGhostText(editorView);
+      return null;
+    }
 
-		const currentWord = wordContext.word;
+    const currentWord = wordContext.word;
 
-		if (this.plugin.settings.abbreviationsEnabled && currentWord) {
-			const line = editor.getLine(cursor.line);
-			const abbreviationResult = this.abbreviationManager.checkForAbbreviation(
-				line,
-				cursor.ch
-			);
-			if (abbreviationResult) {
-				const {
-					abbreviation,
-					start: abbrevStart,
-					end: abbrevEnd,
-				} = abbreviationResult;
-				const expandedText = this.abbreviationManager.expandAbbreviation(
-					abbreviation.shortcut,
-					this.plugin.settings.abbreviationNotification
-				);
-				if (expandedText) {
-					editor.replaceRange(
-						expandedText + " ",
-						{ line: cursor.line, ch: abbrevStart },
-						{ line: cursor.line, ch: abbrevEnd }
-					);
-					editor.setCursor({
-						line: cursor.line,
-						ch: abbrevStart + expandedText.length + 1,
-					});
-				}
-				clearGhostText(editorView);
-				return null;
-			}
-		}
+    if (this.plugin.settings.abbreviationsEnabled && currentWord) {
+      const line = editor.getLine(cursor.line);
+      const abbreviationResult = this.abbreviationManager.checkForAbbreviation(
+        line,
+        cursor.ch
+      );
+      if (abbreviationResult) {
+        const {
+          abbreviation,
+          start: abbrevStart,
+          end: abbrevEnd,
+        } = abbreviationResult;
+        const expandedText = this.abbreviationManager.expandAbbreviation(
+          abbreviation.shortcut,
+          this.plugin.settings.abbreviationNotification
+        );
+        if (expandedText) {
+          editor.replaceRange(
+            expandedText + " ",
+            { line: cursor.line, ch: abbrevStart },
+            { line: cursor.line, ch: abbrevEnd }
+          );
+          editor.setCursor({
+            line: cursor.line,
+            ch: abbrevStart + expandedText.length + 1,
+          });
+        }
+        clearGhostText(editorView);
+        return null;
+      }
+    }
 
-		if (!isWordEligible(currentWord, this.minChars, this.maxChars)) {
-			logger.debug(`[WordServeSuggest] Word '${currentWord}' is not eligible.`);
-			clearGhostText(editorView);
-			return null;
-		}
+    if (!isWordEligible(currentWord, this.minChars, this.maxChars)) {
+      logger.debug(`[WordServeSuggest] Word '${currentWord}' is not eligible.`);
+      clearGhostText(editorView);
+      return null;
+    }
 
-		if (
-			currentWord.toLowerCase() === this.lastWord &&
-			this.lastSuggestions.length === 0
-		) {
-			clearGhostText(editorView);
-			return null;
-		}
+    if (
+      currentWord.toLowerCase() === this.lastWord &&
+      this.lastSuggestions.length === 0
+    ) {
+      clearGhostText(editorView);
+      return null;
+    }
 
-		this.currentWord = currentWord;
-		this.lastWord = currentWord.toLowerCase();
-		clearGhostText((editor as any).cm);
+    this.currentWord = currentWord;
+    this.lastWord = currentWord.toLowerCase();
+    clearGhostText((editor as any).cm);
 
-		if (
-			this.cachedSuggestions[this.lastWord] &&
-			this.cachedSuggestions[this.lastWord].length > 0
-		) {
-			const capitalizedIndexes = getCapitalizedIndexes(currentWord);
-			this.lastSuggestions = this.cachedSuggestions[this.lastWord].map((s) => ({
-				...s,
-				word: capitalizeWord(s.word, capitalizedIndexes),
-			}));
-		}
+    if (
+      this.cachedSuggestions[this.lastWord] &&
+      this.cachedSuggestions[this.lastWord].length > 0
+    ) {
+      const capitalizedIndexes = getCapitalizedIndexes(currentWord);
+      this.lastSuggestions = this.getCachedSuggestions(this.lastWord)?.map((s) => ({
+        ...s,
+        word: capitalizeWord(s.word, capitalizedIndexes),
+      })) || [];
+    }
 
-		return {
-			start: wordContext.start,
-			end: wordContext.end,
-			query: currentWord,
-		};
-	}
+    return {
+      start: wordContext.start,
+      end: wordContext.end,
+      query: currentWord,
+    };
+  }
 
-	/** Fetches suggestions from backend or abbreviation manager based on input context. */
-	async getSuggestions(context: EditorSuggestContext): Promise<Suggestion[]> {
-		logger.debug(
-			`[WordServeSuggest] Getting suggestions for query: '${context.query}'`
-		);
-		if (!context.query || !context.query.trim()) {
-			logger.debug(
-				`[WordServeSuggest] Query is empty or whitespace, returning no suggestions.`
-			);
-			return [];
-		}
-		const suggestions = await this.debouncedGetSuggestions(context);
-		this.lastSuggestions = suggestions;
-		this.selectedIndex = 0;
-		this.updateGhostText();
-		return suggestions;
-	}
+  /** Fetches suggestions from core or abbreviation manager based on input context. */
+  async getSuggestions(context: EditorSuggestContext): Promise<Suggestion[]> {
+    logger.debug(
+      `[WordServeSuggest] Getting suggestions for query: '${context.query}'`
+    );
+    if (!context.query || !context.query.trim()) {
+      logger.debug(
+        `[WordServeSuggest] Query is empty or whitespace, returning no suggestions.`
+      );
+      return [];
+    }
+    const suggestions = await this.debouncedGetSuggestions(context);
+    this.lastSuggestions = suggestions;
+    this.selectedIndex = 0;
+    this.updateGhostText();
+    return suggestions;
+  }
 
-	private debouncedGetSuggestions(
-		context: EditorSuggestContext
-	): Promise<Suggestion[]> {
-		return new Promise((resolve) => {
-			if (this.debounceTimeout) {
-				clearTimeout(this.debounceTimeout);
-			}
+  private debouncedGetSuggestions(
+    context: EditorSuggestContext
+  ): Promise<Suggestion[]> {
+    return new Promise((resolve) => {
+      if (this.debounceTimeout) {
+        clearTimeout(this.debounceTimeout);
+      }
 
-			this.debounceTimeout = setTimeout(async () => {
-				const query = context.query.toLowerCase();
-				
-				// Check cache first
-				if (this.cachedSuggestions[query]) {
-					logger.debug(`[WordServeSuggest] Using cached suggestions for: '${query}'`);
-					const capitalizedIndexes = getCapitalizedIndexes(context.query);
-					const suggestions = this.cachedSuggestions[query].map((s) => ({
-						...s,
-						word: capitalizeWord(s.word, capitalizedIndexes),
-					}));
-					resolve(suggestions);
-					return;
-				}
+      this.debounceTimeout = setTimeout(async () => {
+        this.debounceTimeout = null;
+        const query = context.query.toLowerCase();
 
-				// Fetch from backend with request counting for optimization
-				this.requestCounter++;
-				try {
-					const suggestions = await this.client.getSuggestions(context.query);
-					
-					// Cache the raw (lowercase) results
-					this.cachedSuggestions[query] = suggestions.map(s => ({ ...s, word: s.word.toLowerCase() }));
-					
-					// Apply capitalization
-					const capitalizedIndexes = getCapitalizedIndexes(context.query);
-					const capitalizedSuggestions = suggestions.map((s) => ({
-						...s,
-						word: capitalizeWord(s.word, capitalizedIndexes),
-					}));
-					
-					logger.debug(`[WordServeSuggest] Fetched ${suggestions.length} suggestions for: '${query}' (request #${this.requestCounter})`);
-					resolve(capitalizedSuggestions);
-				} catch (error) {
-					logger.error(`[WordServeSuggest] Error fetching suggestions for '${query}':`, error);
-					resolve([]);
-				}
-			}, this.debounceDelay);
-		});
-	}
+        // Check cache first
+        const cachedSuggestions = this.getCachedSuggestions(query);
+        if (cachedSuggestions) {
+          logger.debug(`[WordServeSuggest] Using cached suggestions for: '${query}'`);
+          const capitalizedIndexes = getCapitalizedIndexes(context.query);
+          const suggestions = cachedSuggestions.map((s) => ({
+            ...s,
+            word: capitalizeWord(s.word, capitalizedIndexes),
+          }));
+          resolve(suggestions);
+          return;
+        }
 
-	/** Renders individual suggestion items with rank indicators and styling. */
-	renderSuggestion(suggestion: Suggestion, el: HTMLElement): void {
-		el.addClass("suggestion-item");
-		const container = el.createDiv({ cls: "wordserve-suggestion-container" });
-		const displayRank = this.lastSuggestions.indexOf(suggestion) + 1;
-		const rankEl = container.createSpan({ cls: "wordserve-suggestion-rank" });
-		if (
-			displayRank > 0 &&
-			(this.numberSelectionEnabled || this.showRankingOverride)
-		) {
-			rankEl.setText(`${displayRank}`);
-		} else {
-			rankEl.style.display = "none";
-		}
+        this.requestCounter++;
+        try {
+          const suggestions = await this.client.getSuggestions(context.query);
+          this.setCachedSuggestions(query, suggestions.map(s => ({ ...s, word: s.word.toLowerCase() })));
 
-		const contentEl = container.createSpan({ cls: "wordserve-suggestion-content" });
-		if (this.context && this.context.query) {
-			const query = this.context.query;
-			const word = suggestion.word;
-			if (word.toLowerCase().startsWith(query.toLowerCase())) {
-				const prefix = word.substring(0, query.length);
-				const suffix = word.substring(query.length);
-				contentEl.createSpan({ cls: "suggestion-prefix", text: prefix });
-				contentEl.createSpan({ cls: "suggestion-suffix", text: suffix });
-			} else {
-				contentEl.setText(suggestion.word);
-			}
-		} else {
-			contentEl.setText(suggestion.word);
-		}
-	}
+          const capitalizedIndexes = getCapitalizedIndexes(context.query);
+          const capitalizedSuggestions = suggestions.map((s) => ({
+            ...s,
+            word: capitalizeWord(s.word, capitalizedIndexes),
+          }));
 
-	/** Handles suggestion selection and applies word replacement or abbreviation expansion. */
-	selectSuggestion(
-		suggestion: Suggestion,
-		evt: KeyboardEvent | MouseEvent
-	): void {
-		if (!this.context) return;
-		const editor = this.context.editor as any;
-		clearGhostText(editor.cm);
+          logger.debug(`[WordServeSuggest] Fetched ${suggestions.length} suggestions for: '${query}' (request #${this.requestCounter})`);
+          resolve(capitalizedSuggestions);
+        } catch (error) {
+          logger.error(`[WordServeSuggest] Error fetching suggestions for '${query}':`, error);
+          resolve([]);
+        }
+      }, this.debounceDelay);
+    });
+  }
 
-		const insertSpace =
-			evt instanceof KeyboardEvent &&
-			keybindManager.getKeysForAction("select_and_space").includes(evt.key);
-		const replacement = suggestion.word + (insertSpace ? " " : "");
-		this.originalWordForBackspace = this.currentWord;
-		this.lastCommittedWord = suggestion.word;
+  /** Renders individual suggestion items with rank indicators and styling. */
+  renderSuggestion(suggestion: Suggestion, el: HTMLElement): void {
+    el.addClass("suggestion-item");
+    const container = el.createDiv({ cls: "wordserve-suggestion-container" });
+    const displayRank = this.lastSuggestions.indexOf(suggestion) + 1;
+    const rankEl = container.createSpan({ cls: "wordserve-suggestion-rank" });
+    if (
+      displayRank > 0 &&
+      (this.numberSelectionEnabled || this.showRankingOverride)
+    ) {
+      rankEl.setText(`${displayRank}`);
+    } else {
+      rankEl.style.display = "none";
+    }
 
-		editor.replaceRange(replacement, this.context.start, this.context.end);
-		this.lastCommittedPosition = {
-			line: this.context.start.line,
-			ch: this.context.start.ch + suggestion.word.length,
-		};
-		editor.setCursor({
-			...this.lastCommittedPosition,
-			ch: this.lastCommittedPosition.ch + (insertSpace ? 1 : 0),
-		});
+    const contentEl = container.createSpan({ cls: "wordserve-suggestion-content" });
+    if (this.context && this.context.query) {
+      const query = this.context.query;
+      const word = suggestion.word;
+      if (word.toLowerCase().startsWith(query.toLowerCase())) {
+        const prefix = word.substring(0, query.length);
+        const suffix = word.substring(query.length);
+        contentEl.createSpan({ cls: "suggestion-prefix", text: prefix });
+        contentEl.createSpan({ cls: "suggestion-suffix", text: suffix });
+      } else {
+        contentEl.setText(suggestion.word);
+      }
+    } else {
+      contentEl.setText(suggestion.word);
+    }
+  }
 
-		this.lastWord = "";
-	}
+  /** Handles suggestion selection and applies word replacement or abbreviation expansion. */
+  selectSuggestion(
+    suggestion: Suggestion,
+    evt: KeyboardEvent | MouseEvent
+  ): void {
+    if (!this.context) return;
+    const editor = this.context.editor as any;
+    clearGhostText(editor.cm);
+
+    const insertSpace =
+      evt instanceof KeyboardEvent &&
+      keybindManager.getKeysForAction("select_and_space").includes(evt.key);
+    const replacement = suggestion.word + (insertSpace ? " " : "");
+    this.originalWordForBackspace = this.currentWord;
+    this.lastCommittedWord = suggestion.word;
+
+    editor.replaceRange(replacement, this.context.start, this.context.end);
+    this.lastCommittedPosition = {
+      line: this.context.start.line,
+      ch: this.context.start.ch + suggestion.word.length,
+    };
+    editor.setCursor({
+      ...this.lastCommittedPosition,
+      ch: this.lastCommittedPosition.ch + (insertSpace ? 1 : 0),
+    });
+
+    this.lastWord = "";
+  }
 
   private restoreFromCommittedWord(): void {
     if (!this.context || !this.lastCommittedWord || !this.lastCommittedPosition)
@@ -476,5 +501,54 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     this.lastCommittedWord = "";
     this.lastCommittedPosition = null;
     this.originalWordForBackspace = "";
+  }
+
+  private getCachedSuggestions(query: string): Suggestion[] | null {
+    if (this.cachedSuggestions[query]) {
+      const index = this.cacheAccessOrder.indexOf(query);
+      if (index > -1) {
+        this.cacheAccessOrder.splice(index, 1);
+      }
+      this.cacheAccessOrder.push(query);
+      return this.cachedSuggestions[query];
+    }
+    return null;
+  }
+
+  private setCachedSuggestions(query: string, suggestions: Suggestion[]): void {
+    this.cachedSuggestions[query] = suggestions;
+
+    // Update access order
+    const index = this.cacheAccessOrder.indexOf(query);
+    if (index > -1) {
+      this.cacheAccessOrder.splice(index, 1);
+    }
+    this.cacheAccessOrder.push(query);
+
+    // cache size limit
+    while (this.cacheAccessOrder.length > this.maxCacheSize) {
+      const oldestKey = this.cacheAccessOrder.shift();
+      if (oldestKey) {
+        delete this.cachedSuggestions[oldestKey];
+      }
+    }
+  }
+
+  public cleanup(): void {
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+      this.debounceTimeout = null;
+    }
+    if (this.observer) {
+      try {
+        this.observer.disconnect();
+      } catch (error) {
+        logger.error("Error disconnecting MutationObserver during cleanup:", error);
+      }
+      this.observer = null;
+    }
+    this.cachedSuggestions = {};
+    this.cacheAccessOrder = [];
+    this.lastSuggestions = [];
   }
 }

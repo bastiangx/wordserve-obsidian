@@ -79,6 +79,7 @@ export default class WordServePlugin extends Plugin {
   }
 
   onunload() {
+    this.suggestor?.cleanup();
     this.client.cleanup();
   }
 
