@@ -34,6 +34,7 @@ export interface TomlConfig {
 export interface ConfigUpdateRequest {
   minPrefix?: number;
   maxLimit?: number;
+  dictionarySize?: number;
 }
 
 /** Manages config interface with WordServe core */
@@ -41,9 +42,14 @@ export class ConfigManager {
   private client: WordServeClient;
   private configPath: string | null = null;
   private cachedConfig: TomlConfig | null = null;
+  private restartCallback: (() => Promise<boolean>) | null = null;
 
   constructor(client: WordServeClient) {
     this.client = client;
+  }
+
+  setRestartCallback(callback: () => Promise<boolean>) {
+    this.restartCallback = callback;
   }
 
   async getConfigPath(): Promise<string | null> {
@@ -52,13 +58,13 @@ export class ConfigManager {
         action: "get_config_path",
       });
 
-      if (response.status === "success" && response.config_path) {
+      if (response.status === "ok" && response.config_path) {
         this.configPath = response.config_path;
         logger.config(`Core config path: ${this.configPath}`);
         return this.configPath;
       }
 
-      logger.error("Failed to get config path from core:", response.error);
+      logger.error("Failed to get config path from core:", response.error || "Unknown error");
       return null;
     } catch (error) {
       logger.error("Error getting config path:", error);
@@ -121,6 +127,17 @@ export class ConfigManager {
         logger.config(`Updated max_limit: ${updates.maxLimit}`);
       }
 
+      if (
+        updates.dictionarySize !== undefined
+      ) {
+        const maxWords = updates.dictionarySize * config.dict.chunk_size;
+        if (maxWords !== config.dict.max_words) {
+          config.dict.max_words = maxWords;
+          hasChanges = true;
+          logger.config(`Updated dictionary max_words: ${maxWords} (${updates.dictionarySize} chunks)`);
+        }
+      }
+
       if (!hasChanges) {
         logger.config("No changes to write to config");
         return true;
@@ -132,9 +149,17 @@ export class ConfigManager {
       this.cachedConfig = config;
       logger.config(`Successfully updated config file: ${configPath}`);
 
-      const reloadSuccess = await this.requestConfigReload();
-      if (!reloadSuccess) {
-        logger.warn("Config file updated but core reload failed");
+      // Force restart the client process to apply new config
+      if (this.restartCallback) {
+        logger.config("Restarting WordServe client to apply new config...");
+        const restartSuccess = await this.restartCallback();
+        if (!restartSuccess) {
+          logger.warn("Config file updated but client restart failed");
+          return false;
+        }
+        logger.config("WordServe client restarted successfully with new config");
+      } else {
+        logger.warn("No restart callback set, config changes may not take effect until restart");
       }
       return true;
     } catch (error) {
@@ -149,7 +174,7 @@ export class ConfigManager {
         action: "rebuild_config",
       });
 
-      if (response.status === "success") {
+      if (response.status === "ok") {
         logger.config("Core config reloaded successfully");
         return true;
       }

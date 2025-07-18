@@ -94,14 +94,7 @@ export interface ConfigResponse {
 // Dictionary management types
 export interface DictionaryRequest {
   id?: string;
-  action: "get_info" | "set_size" | "get_options";
-  chunk_count?: number;
-}
-
-export interface DictionarySizeOption {
-  chunk_count: number;
-  word_count: number;
-  size_label: string;
+  action: "get_info";
 }
 
 export interface DictionaryResponse {
@@ -110,7 +103,6 @@ export interface DictionaryResponse {
   error?: string;
   current_chunks?: number;
   available_chunks?: number;
-  options?: DictionarySizeOption[];
 }
 
 export type BackendResponse =

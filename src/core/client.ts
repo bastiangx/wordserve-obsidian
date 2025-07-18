@@ -60,6 +60,8 @@ export class WordServeClient {
       () => this.restart()
     );
     this.configManager = new ConfigManager(this);
+    // Set up restart callback for config changes
+    this.configManager.setRestartCallback(() => this.restart());
   }
 
   private sendRequest<T extends BackendResponse>(
@@ -354,26 +356,28 @@ export class WordServeClient {
     }
   }
 
-  /** Configures dictionary size by setting the number of dictionary chunks to load. */
-  async setDictionarySize(chunkCount: number): Promise<ConfigResponse> {
-    const request: DictionaryRequest = {
-      action: "set_size",
-      chunk_count: Math.max(1, Math.floor(chunkCount)),
-    };
-    return this.sendRequest<ConfigResponse>(request, 5000);
-  }
 
   async getDictionaryInfo(): Promise<DictionaryResponse> {
     const request: DictionaryRequest = { action: "get_info" };
     return this.sendRequest<DictionaryResponse>(request);
   }
 
-  async getDictionaryOptions(): Promise<DictionaryResponse> {
-    const request: DictionaryRequest = { action: "get_options" };
-    return this.sendRequest<DictionaryResponse>(request);
-  }
 
   async sendConfigRequest(request: ConfigRequest): Promise<ConfigResponse> {
+    if (!this.isReady) {
+      logger.warn("WordServeClient not ready for config request, attempting to reinitialize...");
+      const success = await this.initialize();
+      if (!success) {
+        throw new Error("Failed to initialize WordServeClient for config request");
+      }
+    }
+    if (!this.process || this.process.killed) {
+      logger.warn("Process is dead for config request, attempting restart...");
+      const success = await this.restart();
+      if (!success) {
+        throw new Error("Failed to restart WordServeClient for config request");
+      }
+    }
     return this.sendRequest<ConfigResponse>(request);
   }
 
