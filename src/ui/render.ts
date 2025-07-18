@@ -8,6 +8,7 @@ import {
   EditorSuggestTriggerInfo,
   TFile,
   Scope,
+  MarkdownView,
 } from "obsidian";
 import { WordServeClient } from "../core/client";
 import { AbbreviationManager } from "../core/abbrv";
@@ -46,7 +47,11 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
   private originalWordForBackspace: string = "";
   private lastCommittedWord: string = "";
   private lastCommittedPosition: EditorPosition | null = null;
+  private lastCommittedWithSpace: boolean = false;
+  private smartBackspaceEnabled: boolean = false;
   private observer: MutationObserver | null = null;
+  private globalBackspaceHandler: ((evt: KeyboardEvent) => void) | null = null;
+  private globalKeyHandler: ((evt: KeyboardEvent) => void) | null = null;
 
   constructor(app: App, client: WordServeClient, plugin: WordServePlugin) {
     super(app);
@@ -97,6 +102,77 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       logger.error("Failed to create MutationObserver:", error);
       this.observer = null;
     }
+
+    // Set up global backspace handler for smart backspace
+    this.setupGlobalBackspaceHandler();
+  }
+
+  private setupGlobalBackspaceHandler(): void {
+    // Global key handler to track any key press after suggestion insertion
+    this.globalKeyHandler = (evt: KeyboardEvent) => {
+      if (!this.smartBackspaceEnabled) return;
+      
+      const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+      if (!activeView?.editor) return;
+      
+      const editor = activeView.editor;
+      const cursor = editor.getCursor();
+      
+      // Check if this is backspace and we're at the expected position
+      if (evt.key === "Backspace" && this.smartBackspace) {
+        // For Enter insertion (no space): cursor should be at end of word
+        // For Tab insertion (with space): cursor should be after the space
+        const expectedCursorPos = this.lastCommittedWithSpace 
+          ? this.lastCommittedPosition!.ch + 1 
+          : this.lastCommittedPosition!.ch;
+        
+        if (
+          this.lastCommittedPosition &&
+          this.lastCommittedWord &&
+          this.originalWordForBackspace &&
+          cursor.line === this.lastCommittedPosition.line &&
+          cursor.ch === expectedCursorPos
+        ) {
+          evt.preventDefault();
+          evt.stopPropagation();
+          
+          // Restore the original word
+          const from = {
+            line: this.lastCommittedPosition.line,
+            ch: this.lastCommittedPosition.ch - this.lastCommittedWord.length,
+          };
+          
+          // If there was a space, remove it too
+          const to = this.lastCommittedWithSpace 
+            ? { line: this.lastCommittedPosition.line, ch: this.lastCommittedPosition.ch + 1 }
+            : this.lastCommittedPosition;
+          
+          editor.replaceRange(
+            this.originalWordForBackspace,
+            from,
+            to
+          );
+          editor.setCursor({
+            line: from.line,
+            ch: from.ch + this.originalWordForBackspace.length,
+          });
+          
+          // Clear the backspace state
+          this.clearSmartBackspaceState();
+          
+          logger.debug("Smart backspace: Restored original word");
+          return;
+        }
+      }
+      
+      // Any other key press disables smart backspace
+      if (evt.key !== "Backspace") {
+        this.clearSmartBackspaceState();
+      }
+    };
+    
+    // Add event listener to document
+    document.addEventListener("keydown", this.globalKeyHandler, true);
   }
 
   open(): void {
@@ -473,11 +549,15 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       line: this.context.start.line,
       ch: this.context.start.ch + suggestion.word.length,
     };
+    this.lastCommittedWithSpace = insertSpace;
     editor.setCursor({
       ...this.lastCommittedPosition,
       ch: this.lastCommittedPosition.ch + (insertSpace ? 1 : 0),
     });
 
+    // Enable smart backspace for immediate use
+    this.smartBackspaceEnabled = true;
+    
     this.lastWord = "";
   }
 
@@ -534,6 +614,14 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     }
   }
 
+  private clearSmartBackspaceState(): void {
+    this.smartBackspaceEnabled = false;
+    this.lastCommittedWord = "";
+    this.lastCommittedPosition = null;
+    this.originalWordForBackspace = "";
+    this.lastCommittedWithSpace = false;
+  }
+
   public cleanup(): void {
     if (this.debounceTimeout) {
       clearTimeout(this.debounceTimeout);
@@ -547,6 +635,13 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       }
       this.observer = null;
     }
+    
+    // Clean up global backspace handler
+    if (this.globalBackspaceHandler) {
+      document.removeEventListener("keydown", this.globalBackspaceHandler, true);
+      this.globalBackspaceHandler = null;
+    }
+    
     this.cachedSuggestions = {};
     this.cacheAccessOrder = [];
     this.lastSuggestions = [];
