@@ -19,87 +19,87 @@ export class AbbreviationDialog extends Modal {
     this.abbreviationManager = abbreviationManager;
   }
 
-	async onOpen() {
-		const { contentEl, modalEl } = this;
-		
-		modalEl.addClass("wordserve-abbreviation-dialog");
-		
-		modalEl.style.width = "700px";
-		modalEl.style.maxWidth = "90vw";
-		modalEl.style.height = "600px";
-		modalEl.style.maxHeight = "80vh";
-		
-		contentEl.empty();
+  async onOpen() {
+    const { contentEl, modalEl } = this;
 
-		contentEl.createEl("h2", { text: "Shortcuts & Abbreviations" });
+    modalEl.addClass("wordserve-abbreviation-dialog");
 
-		await this.createControls();
+    modalEl.style.width = "700px";
+    modalEl.style.maxWidth = "90vw";
+    modalEl.style.height = "600px";
+    modalEl.style.maxHeight = "80vh";
 
-		const addButtonContainer = contentEl.createDiv({ cls: "wordserve-add-button-container" });
-		const addButton = new ButtonComponent(addButtonContainer);
-		addButton
-			.setButtonText("+ Add New Shortcut")
-			.setCta()
-			.onClick(() => this.addNewEntry());
+    contentEl.empty();
 
-		const entriesContainer = contentEl.createDiv({ cls: "wordserve-entries-container" });
+    contentEl.createEl("h2", { text: "Shortcuts & Abbreviations" });
+
+    await this.createControls();
+
+    const addButtonContainer = contentEl.createDiv({ cls: "wordserve-add-button-container" });
+    const addButton = new ButtonComponent(addButtonContainer);
+    addButton
+      .setButtonText("+ Add new")
+      .setCta()
+      .onClick(() => this.addNewEntry());
+
+    const entriesContainer = contentEl.createDiv({ cls: "wordserve-entries-container" });
     this.refreshEntries(entriesContainer);
   }
 
-	private async createControls() {
-		const { contentEl } = this;
-		const controlsContainer = contentEl.createDiv({ cls: "wordserve-controls-container" });
+  private async createControls() {
+    const { contentEl } = this;
+    const controlsContainer = contentEl.createDiv({ cls: "wordserve-controls-container" });
 
-		const searchContainer = controlsContainer.createDiv({ cls: "wordserve-search-container" });
-		searchContainer.createEl("label", { text: "Search shortcuts:" });
-		
-		this.searchInput = new TextComponent(searchContainer);
-		this.searchInput
-			.setPlaceholder("Search by shortcut...")
-			.onChange((value) => {
-				this.filterEntries(value);
-				this.renderEntries();
-			});
+    const searchContainer = controlsContainer.createDiv({ cls: "wordserve-search-container" });
+    searchContainer.createEl("label", { text: "Search shortcuts:" });
 
-		const sortContainer = controlsContainer.createDiv({ cls: "wordserve-sort-container" });
-		sortContainer.createEl("label", { text: "Sort by:" });
-		
-		const sortSelect = sortContainer.createEl("select");
-		const sortOptions = [
-			{ value: "newest", text: "Newest first" },
-			{ value: "oldest", text: "Oldest first" },
-			{ value: "alphabetical-asc", text: "A-Z" },
-			{ value: "alphabetical-desc", text: "Z-A" }
-		];
+    this.searchInput = new TextComponent(searchContainer);
+    this.searchInput
+      .setPlaceholder("Search by shortcut...")
+      .onChange((value) => {
+        this.filterEntries(value);
+        this.renderEntries();
+      });
 
-		sortOptions.forEach(option => {
-			const optionEl = sortSelect.createEl("option", { value: option.value, text: option.text });
-			if (option.value === this.sortBy) {
-				optionEl.selected = true;
-			}
-		});
+    const sortContainer = controlsContainer.createDiv({ cls: "wordserve-sort-container" });
+    sortContainer.createEl("label", { text: "Sort by:" });
 
-		sortSelect.addEventListener("change", (e) => {
-			this.sortBy = (e.target as HTMLSelectElement).value as typeof this.sortBy;
-			this.refreshEntries();
-		});
-	}
+    const sortSelect = sortContainer.createEl("select");
+    const sortOptions = [
+      { value: "newest", text: "Newest first" },
+      { value: "oldest", text: "Oldest first" },
+      { value: "alphabetical-asc", text: "A-Z" },
+      { value: "alphabetical-desc", text: "Z-A" }
+    ];
 
-	private filterEntries(query: string = "") {
-		if (!query.trim()) {
-			this.filteredEntries = this.entries;
-		} else {
-			this.filteredEntries = this.abbreviationManager.searchAbbreviations(query);
-		}
-	}
+    sortOptions.forEach(option => {
+      const optionEl = sortSelect.createEl("option", { value: option.value, text: option.text });
+      if (option.value === this.sortBy) {
+        optionEl.selected = true;
+      }
+    });
 
-	private refreshEntries(container?: HTMLElement) {
-		this.entries = this.abbreviationManager.getAllAbbreviations();
-    
+    sortSelect.addEventListener("change", (e) => {
+      this.sortBy = (e.target as HTMLSelectElement).value as typeof this.sortBy;
+      this.refreshEntries();
+    });
+  }
+
+  private filterEntries(query: string = "") {
+    if (!query.trim()) {
+      this.filteredEntries = this.entries;
+    } else {
+      this.filteredEntries = this.abbreviationManager.searchAbbreviations(query);
+    }
+  }
+
+  private refreshEntries(container?: HTMLElement) {
+    this.entries = this.abbreviationManager.getAllAbbreviations();
+
     // Update filtered entries based on current search
     const currentSearch = this.searchInput?.getValue() || "";
     this.filterEntries(currentSearch);
-    
+
     // Render the UI
     this.renderEntries(container);
   }
@@ -110,12 +110,12 @@ export class AbbreviationDialog extends Modal {
     if (!entriesContainer) return;
 
     entriesContainer.empty();
-    
+
     // Use the filtered entries
     const sortedEntries = this.abbreviationManager.sortAbbreviations(this.filteredEntries, this.sortBy);
 
     if (sortedEntries.length === 0) {
-      entriesContainer.createEl("p", { 
+      entriesContainer.createEl("p", {
         text: "No entries found! Create a new one or refine your search.",
         cls: "wordserve-no-entries"
       });
@@ -133,12 +133,12 @@ export class AbbreviationDialog extends Modal {
       new Notice("Shortcut cannot be empty", 3000);
       return false;
     }
-    
+
     if (shortcut.length > CONFIG.abbreviations.maxShortcutLength) {
       new Notice(`Shortcut too long! Maximum ${CONFIG.abbreviations.maxShortcutLength} characters allowed`, 3000);
       return false;
     }
-    
+
     // Check for valid UTF-8 characters (letters, numbers, symbols)
     // Exclude control characters and problematic characters
     const validPattern = /^[\p{L}\p{N}\p{P}\p{S}]+$/u;
@@ -146,23 +146,23 @@ export class AbbreviationDialog extends Modal {
       new Notice("Shortcut contains invalid characters. Use letters, numbers, and symbols only", 3000);
       return false;
     }
-    
+
     // Validate target
     if (!target || target.length === 0) {
       new Notice("Target phrase cannot be empty", 3000);
       return false;
     }
-    
+
     if (target.length > CONFIG.abbreviations.maxTargetLength) {
       new Notice(`Target phrase too long! Maximum ${CONFIG.abbreviations.maxTargetLength} characters allowed`, 3000);
       return false;
     }
-    
+
     if (target.includes('\0') || target.includes('\x01') || target.includes('\x02')) {
       new Notice("Target phrase contains invalid control characters", 3000);
       return false;
     }
-    
+
     return true;
   }
 
@@ -185,7 +185,7 @@ export class AbbreviationDialog extends Modal {
       const isValid = this.validateShortcut(value);
       shortcutInput.inputEl.removeClass("wordserve-input-valid", "wordserve-input-invalid");
       shortcutInput.inputEl.addClass(isValid ? "wordserve-input-valid" : "wordserve-input-invalid");
-      
+
       // Update character count
       const container = shortcutInput.inputEl.parentElement;
       if (container) {
@@ -252,7 +252,7 @@ export class AbbreviationDialog extends Modal {
         .onClick(async () => {
           const shortcut = shortcutInput.getValue().trim();
           const target = targetTextarea.getValue().trim();
-          
+
           if (!this.validateInput(shortcut, target)) {
             return;
           }
@@ -279,10 +279,10 @@ export class AbbreviationDialog extends Modal {
         .onClick(() => {
           shortcutInput.setDisabled(false);
           targetTextarea.setDisabled(false);
-          
+
           // Add validation for the now-enabled inputs
           this.addInputValidation(shortcutInput, targetTextarea);
-          
+
           // Replace modify button with save/cancel
           modifyButton.buttonEl.remove();
           removeButton.buttonEl.remove();
@@ -294,14 +294,14 @@ export class AbbreviationDialog extends Modal {
             .onClick(async () => {
               const newShortcut = shortcutInput.getValue().trim();
               const newTarget = targetTextarea.getValue().trim();
-              
+
               if (!this.validateInput(newShortcut, newTarget)) {
                 return;
               }
 
               const success = await this.abbreviationManager.updateAbbreviation(
-                entry.shortcut, 
-                newShortcut, 
+                entry.shortcut,
+                newShortcut,
                 newTarget
               );
               if (success) {
@@ -350,13 +350,13 @@ export class AbbreviationDialog extends Modal {
     const firstChild = entriesContainer.firstChild;
     const tempContainer = entriesContainer.createDiv();
     this.createEntryRow(tempContainer, newEntry, true);
-    
+
     if (firstChild) {
       entriesContainer.insertBefore(tempContainer.firstChild!, firstChild);
     } else {
       entriesContainer.appendChild(tempContainer.firstChild!);
     }
-    
+
     tempContainer.remove();
   }
 
