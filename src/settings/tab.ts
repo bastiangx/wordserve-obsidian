@@ -42,8 +42,8 @@ export class WordServeSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Minimum word length")
-      .setDesc("Minimum number of characters before showing suggestions")
+      .setName("Minimum length")
+      .setDesc("Number of typed characters before showing suggestions")
       .addSlider((slider) =>
         slider
           .setLimits(
@@ -58,13 +58,11 @@ export class WordServeSettingTab extends PluginSettingTab {
             this.plugin.settings.minWordLength = value;
             this.plugin.suggestor.minChars = value;
 
-            // Update TOML config file for core
             const success = await this.plugin.client.updateConfigFile({
               minPrefix: value
             });
 
             if (success) {
-              // Restart the backend to pick up new config
               await this.plugin.client.restart();
             }
 
@@ -79,7 +77,7 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Maximum suggestions")
-      .setDesc("Maximum number of suggestions to show")
+      .setDesc("Number of suggestions to show")
       .addSlider((slider) =>
         slider
           .setLimits(
@@ -92,17 +90,17 @@ export class WordServeSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             const oldValue = this.plugin.settings.maxSuggestions;
             const validValue = Math.max(1, Math.min(180, value)); // Ensure value is between 1 and 180
-            
+
             if (validValue !== value) {
               logger.warn(`Invalid maxSuggestions value: ${value}, using: ${validValue}`);
             }
-            
+
             this.plugin.settings.maxSuggestions = validValue;
             this.plugin.suggestor.limit = validValue;
 
             // Update TOML config file for core
             const success = await this.plugin.client.updateConfigFile({
-              maxLimit: value
+              maxSuggestions: value
             });
 
             if (success) {
@@ -121,7 +119,7 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Digit selection")
-      .setDesc("Allow faster selection via pressing digit keys")
+      .setDesc("Faster selection via pressing the number keys [1-9]")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.numberSelection)
@@ -135,7 +133,7 @@ export class WordServeSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Rankings Override")
       .setDesc(
-        "Always show suggestion rankings, even if digit selection is off."
+        "Show rankings, even if digit selection is OFF."
       )
       .addToggle((toggle) =>
         toggle
@@ -149,7 +147,7 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Debounce time")
-      .setDesc("Time to wait after typing before showing suggestions menu")
+      .setDesc("Time to wait after typing to see suggestions")
       .setTooltip("Enter a number between 1 and 2000 milliseconds",)
       .addText((text) => {
         const min = CONFIG.limits.debounceTime.min;
@@ -186,42 +184,38 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Accept suggestion")
-      .setDesc("Key to accept suggestion without adding space")
+      .setDesc("Insert WITHOUT adding space")
       .addDropdown((dropdown) => {
         dropdown.addOption("Enter", "Enter");
         dropdown.addOption("Tab", "Tab");
         dropdown.setValue(CONFIG.keybinds.select[0] || "Enter");
         dropdown.onChange(async (value) => {
-          // Update the keybind manager
           keybindManager.overrideKeybind("select", [value]);
-          // Re-register the scope keybinds in WordServeSuggest
           this.plugin.suggestor.updateKeybinds();
-          new Notice(`Accept suggestion key changed to ${value}`);
         });
       });
 
     new Setting(containerEl)
-      .setName("Accept suggestion and add space")
-      .setDesc("Key to accept suggestion and automatically add a space")
+      .setName("Accept suggestion with space")
+      .setDesc("Insert WITH added space")
       .addDropdown((dropdown) => {
         dropdown.addOption("Tab", "Tab");
         dropdown.addOption("Enter", "Enter");
         dropdown.setValue(CONFIG.keybinds.select_and_space[0] || "Tab");
         dropdown.onChange(async (value) => {
-          // Update the keybind manager
           keybindManager.overrideKeybind("select_and_space", [value]);
-          // Re-register the scope keybinds in WordServeSuggest
           this.plugin.suggestor.updateKeybinds();
-          new Notice(`Accept suggestion and add space key changed to ${value}`);
         });
       });
 
-    // Shortcuts & Abbreviations Section
-    containerEl.createEl("h3", { text: "Shortcuts & abbreviations" });
+    // Shortucts Section
+    new Setting(containerEl)
+      .setName("Shortcuts & abbreviations")
+      .setHeading();
 
     new Setting(containerEl)
-      .setName("Enable abbreviations")
-      .setDesc("Enable shortcuts and text expansion functionality")
+      .setName("Abbreviations")
+      .setDesc("Text expansion functionality")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.abbreviationsEnabled)
@@ -232,8 +226,8 @@ export class WordServeSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Show abbreviation notification")
-      .setDesc("Display a notification when an abbreviation is expanded")
+      .setName("Abbreviation notifications")
+      .setDesc("When shortcuts are expanded")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.abbreviationNotification)
@@ -245,10 +239,10 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Manage shortcuts")
-      .setDesc("View and edit your shortcuts and their expansions")
+      .setDesc("View and change your abbreviations list")
       .addButton((button) =>
         button
-          .setButtonText("Edit your Shortcuts")
+          .setButtonText("Edit")
           .setCta()
           .onClick(() => {
             const dialog = new AbbreviationDialog(
@@ -261,12 +255,14 @@ export class WordServeSettingTab extends PluginSettingTab {
       );
 
     // Rendering Section
-    containerEl.createEl("h3", { text: "Rendering" });
+    new Setting(containerEl)
+      .setName("Rendering")
+      .setHeading();
 
     new Setting(containerEl)
-      .setName("Compact mode")
+      .setName("Compact")
       .setDesc(
-        "Makes the UI more compact with smaller paddings, margins, and scrollbars"
+        "UI with smaller paddings and margins"
       )
       .addToggle((toggle) =>
         toggle
@@ -280,7 +276,7 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Font size")
-      .setDesc("Font size for suggestion text")
+      .setDesc("Suggestion text (in-menu)")
       .addDropdown((dropdown) => {
         dropdown.addOption("smallest", "Text Smallest (0.8em)");
         dropdown.addOption("smaller", "Text Smaller (0.875em)");
@@ -343,17 +339,20 @@ export class WordServeSettingTab extends PluginSettingTab {
       });
 
     // Dictionary Section
-    containerEl.createEl("h3", { text: "Dictionary" });
+    new Setting(containerEl)
+      .setName("Dictionary")
+      .setHeading();
 
-    // Add dictionary size setting
     await this.addDictionarySizeSetting(containerEl);
 
     // Accessibility Section
-    containerEl.createEl("h3", { text: "Accessibility" });
+    new Setting(containerEl)
+      .setName("Accessibility")
+      .setHeading();
 
     new Setting(containerEl)
       .setName("Bold suffix")
-      .setDesc("Makes the non-prefix part of suggestions bold")
+      .setDesc("Makes the suffix of suggestions bold")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.accessibility.boldSuffix)
@@ -365,8 +364,8 @@ export class WordServeSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Uppercase suggestions")
-      .setDesc("Shows all suggestions in uppercase letters")
+      .setName("All uppercase")
+      .setDesc("Suggestions will be in UPPERCASE")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.accessibility.uppercaseSuggestions)
@@ -377,9 +376,10 @@ export class WordServeSettingTab extends PluginSettingTab {
           })
       );
 
+
     new Setting(containerEl)
-      .setName("Ghost text color intensity")
-      .setDesc("Controls how prominently ghost text appears in the editor")
+      .setName("Ghost text color")
+      .setDesc("(in-editor) color - will depend on your applied theme")
       .addDropdown((dropdown) => {
         dropdown.addOption("normal", "Normal");
         dropdown.addOption("accent", "Accent");
@@ -398,8 +398,8 @@ export class WordServeSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Prefix color intensity")
-      .setDesc("Controls how muted the prefix characters appear in suggestions")
+      .setName("Prefix color")
+      .setDesc("(in-menu) color - will depend on your applied theme")
       .addDropdown((dropdown) => {
         dropdown.addOption("normal", "Normal");
         dropdown.addOption("accent", "Accent");
@@ -418,12 +418,14 @@ export class WordServeSettingTab extends PluginSettingTab {
       });
 
     // Debug Section
-    containerEl.createEl("h3", { text: "Debugging" });
+    new Setting(containerEl)
+      .setName("Debugging")
+      .setHeading();
 
     new Setting(containerEl)
-      .setName("Toggle Debug Mode")
+      .setName("Debug Mode")
       .setDesc(
-        "Intended for advanced users only. Enables detailed logging, status bar, and debug output from core library. May impact performance."
+        "Intended for advanced users only: detailed logging, status bar, and debug output from core library. May impact performance slightly"
       )
       .addToggle((toggle) =>
         toggle
@@ -526,7 +528,7 @@ export class WordServeSettingTab extends PluginSettingTab {
     debugEventsDetails.style.marginTop = "20px";
 
     const summary = debugEventsDetails.createEl("summary", {
-      text: "Debug Events",
+      text: "Events",
       cls: "typer-debug-summary",
     });
     summary.style.cursor = "pointer";
@@ -539,14 +541,14 @@ export class WordServeSettingTab extends PluginSettingTab {
     debugContent.style.marginLeft = "15px";
 
     debugContent.createEl("p", {
-      text: "Control what gets logged to console. Each option has a unique prefix for easy filtering.",
+      text: "Control what gets logged to console. Notice that you can view the console via the DevTools [Ctrl+Shift+I] or [Cmd+Option+I] on Mac).",
       cls: "setting-item-description",
     });
 
     // MessagePack data logging
     new Setting(debugContent)
-      .setName("MessagePack data [MP]")
-      .setDesc("Log binary MessagePack data sent/received with decoded content")
+      .setName("MessagePack [MP]")
+      .setDesc("MessagePack data processing")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.debug.msgpackData)
@@ -560,9 +562,9 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     // Menu render events
     new Setting(debugContent)
-      .setName("Menu render events [MENU]")
+      .setName("Menu render [MENU]")
       .setDesc(
-        "Log suggestion menu UI: rows, styling, colors, themes, digit selection display (excludes suggestion content)"
+        "Suggestion menu UI info: rows, styling, colors, themes, digit selection display (excludes suggestion content)"
       )
       .addToggle((toggle) =>
         toggle
@@ -577,9 +579,9 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     // Config change events (includes settings)
     new Setting(debugContent)
-      .setName("Config & settings changes [CFG]")
+      .setName("Config & settings [CFG]")
       .setDesc(
-        "Log plugin settings changes, configuration updates and core library config changes"
+        "Plugin settings changes & config updates"
       )
       .addToggle((toggle) =>
         toggle
@@ -592,11 +594,11 @@ export class WordServeSettingTab extends PluginSettingTab {
           })
       );
 
-    // Render events (verbose)
+    // Render events
     new Setting(debugContent)
-      .setName("Render events [RENDER] (Verbose)")
+      .setName("Render [RENDER] (Verbose)")
       .setDesc(
-        "Log detailed menu positioning, sizing, DOM manipulation and rendering performance - very verbose (excludes suggestion content)"
+        "Detailed menu positioning, sizing & DOM - very verbose"
       )
       .addToggle((toggle) =>
         toggle
@@ -611,8 +613,8 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     // Abbreviation events
     new Setting(debugContent)
-      .setName("Abbreviation events [ABBR]")
-      .setDesc("Log abbreviation expansions, file operations and shortcut detection")
+      .setName("Abbreviation [ABBR]")
+      .setDesc("Abbreviation|shortcut expansions details")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.debug.abbrEvents)
@@ -633,7 +635,7 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     new Setting(debugContent)
       .setName("Auto-respawn")
-      .setDesc("Automatically restart the core process to prevent memory bloat. Disabling this may cause memory issues in early development.")
+      .setDesc("Automatically restart the spawned process. Disabling this may cause issues")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.autorespawn.enabled)
@@ -661,7 +663,7 @@ export class WordServeSettingTab extends PluginSettingTab {
     new Setting(debugContent)
       .setName("Force rebuild core")
       .setDesc(
-        "Restarts typer's core process. Use this ONLY if you encounter unrecoverable errors or want a fresh start without disabling the plugin."
+        "Restarts WordServe's core process. Use this ONLY if you encounter unrecoverable errors or want a fresh start without disabling the plugin."
       )
       .addButton((button) =>
         button
@@ -698,20 +700,18 @@ export class WordServeSettingTab extends PluginSettingTab {
     containerEl: HTMLElement
   ): Promise<void> {
     const currentSize = this.plugin.settings.dictionarySize;
-
-    // Count available dictionary files dynamically
     const maxChunks = await this.getAvailableDictionaryFiles();
 
     new Setting(containerEl)
-      .setName("Dictionary size")
+      .setName("Size")
       .setDesc(
-        "Number of words to load. Higher values provide more suggestions but use more memory."
+        "Number of words to load. Higher values provide more suggestions but may use slightly more memory"
       )
       .addDropdown((dropdown) => {
-        // Generate options based on available dictionary files
         for (let i = 1; i <= maxChunks; i++) {
-          const words = i * 10; // Each chunk is ~10K words
-          dropdown.addOption(i.toString(), `${words}K words`);
+          // chunk is ~10K words
+          const words = i * 10;
+          dropdown.addOption(i.toString(), `${words}K`);
         }
 
         dropdown
@@ -728,8 +728,10 @@ export class WordServeSettingTab extends PluginSettingTab {
 
             if (newSize !== oldSize) {
               try {
-                const updateResponse = await this.plugin.client.setDictionarySize(newSize);
-                if (updateResponse.status === "ok") {
+                const updateSuccess = await this.plugin.client.getConfigManager().updateConfig({
+                  dictionarySize: newSize,
+                });
+                if (updateSuccess) {
                   this.plugin.settings.dictionarySize = newSize;
                   await this.plugin.saveSettings();
                   logger.config("Dictionary size changed", {
@@ -738,7 +740,7 @@ export class WordServeSettingTab extends PluginSettingTab {
                   });
                   new Notice(`Dictionary size updated`);
                 } else {
-                  new Notice(`Failed to update dictionary size: ${updateResponse.error}`);
+                  new Notice(`Failed to update dictionary size in config file`);
                   dropdown.setValue(oldSize.toString());
                 }
               } catch (error) {
@@ -854,22 +856,11 @@ class AutoRespawnWarningModal extends Modal {
     contentEl.createEl("h2", { text: "Disable Auto-Respawn?" });
 
     contentEl.createEl("p", {
-      text: "Auto-respawn prevents memory bloat by periodically restarting the core process.",
+      text: "auto spawning WordServe helps keeping the plugin stable and responsive.",
     });
 
     contentEl.createEl("p", {
-      text: "Disabling this feature may cause:",
-      cls: "mod-warning"
-    });
-
-    const list = contentEl.createEl("ul");
-    list.createEl("li", { text: "Increased memory usage over time" });
-    list.createEl("li", { text: "Potential performance degradation" });
-    list.createEl("li", { text: "Plugin instability during extended use" });
-    list.createEl("li", { text: "Possible crashes in development builds" });
-
-    contentEl.createEl("p", {
-      text: "Typer is in early development. Auto-respawn is recommended for stability.",
+      text: "Disabling this feature may cause bigger memory usage",
       cls: "mod-warning"
     });
 
@@ -884,7 +875,7 @@ class AutoRespawnWarningModal extends Modal {
     };
 
     const confirmButton = buttonContainer.createEl("button", {
-      text: "Disable Auto-Respawn",
+      text: "Disable",
       cls: "mod-warning",
     });
     confirmButton.onclick = async () => {
