@@ -6,7 +6,7 @@ import * as child_process from "child_process";
 import { logger } from "../utils/logger";
 
 export const GITHUB_REPO = "bastiangx/wordserve";
-export const TARGET_RELEASE_VERSION = "v0.1.1-beta";
+export const TARGET_RELEASE_VERSION = "v0.1.2-beta";
 export const BINARY_NAME = "wordserve";
 
 interface PlatformInfo {
