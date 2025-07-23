@@ -100,8 +100,8 @@ export class WordServeDownloader {
       }
 
       if (sizeInMB > 100) {
-        logger.warn(`Very large download: ${description} is ${sizeInMB.toFixed(1)}MB - this may impact performance`);
-        // TODO: For very large files, we should consider streaming
+        logger.warn(`Very large download: ${description} is ${sizeInMB.toFixed(1)}MB - may impact performance`);
+        // TODO: For very large files?, should do streaming, tho not likely ever
       }
 
       if (typeof process !== 'undefined' && process.memoryUsage) {
