@@ -45,7 +45,26 @@ export class AbbreviationManager {
 
   private async loadAbbreviations(): Promise<void> {
     try {
-      const fileExists = await this.app.vault.adapter.exists(this.filePath);
+      // Try to load from plugin data first
+      const pluginData = await this.plugin.loadData();
+      if (pluginData?.abbreviations) {
+        if (this.validateAbbreviationMap(pluginData.abbreviations)) {
+          this.abbreviations = pluginData.abbreviations;
+          logger.abbrv(
+            `Loaded ${Object.keys(this.abbreviations).length} abbreviations from plugin data`
+          );
+          return;
+        }
+      }
+      // only fallback if plg data not valid
+      let fileExists: boolean;
+      try {
+        await this.app.vault.adapter.stat(this.filePath);
+        fileExists = true;
+      } catch {
+        fileExists = false;
+      }
+      
       if (!fileExists) {
         await this.createDefaultFile();
         return;
@@ -59,6 +78,8 @@ export class AbbreviationManager {
         logger.abbrv(
           `Loaded ${Object.keys(this.abbreviations).length} abbreviations`
         );
+        // Migrate to plugin data storage
+        await this.saveAbbreviations();
       } else {
         logger.abbrv("Invalid abbreviation data, creating default file");
         await this.createDefaultFile();
@@ -138,15 +159,11 @@ export class AbbreviationManager {
 
   private async saveAbbreviations(): Promise<void> {
     try {
-      const dir = path.dirname(this.filePath);
-      const dirExists = await this.app.vault.adapter.exists(dir);
-      if (!dirExists) {
-        await this.app.vault.adapter.mkdir(dir);
-      }
-
-      const content = JSON.stringify(this.abbreviations, null, 2);
-      await this.app.vault.adapter.write(this.filePath, content);
-      logger.abbrv("Abbreviations saved successfully");
+      // Use plugin data storage instead of direct file manipulation
+      const currentData = await this.plugin.loadData() || {};
+      currentData.abbreviations = this.abbreviations;
+      await this.plugin.saveData(currentData);
+      logger.abbrv("Abbreviations saved successfully to plugin data");
     } catch (error) {
       logger.abbrv("Error saving abbreviations", error);
     }

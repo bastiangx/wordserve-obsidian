@@ -21,6 +21,11 @@ import { setGhostText, clearGhostText } from "../editor/ghost-text-extension";
 import WordServePlugin from "../../main";
 import { logger } from "../utils/logger";
 
+// Internal types for CodeMirror integration
+interface EditorWithCM extends Editor {
+  cm: EditorView;
+}
+
 /** Main suggestion interface that handles word completion and abbreviation expansion. */
 export class WordServeSuggest extends EditorSuggest<Suggestion> {
   public minChars: number = CONFIG.plugin.minWordLength;
@@ -78,6 +83,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
             ) {
               const target = mutation.target as HTMLElement;
               if (target.classList.contains("is-selected")) {
+                // Access internal suggestions container from EditorSuggest
                 const suggestionsContainer = (this as any).suggestions?.containerEl;
                 if (
                   suggestionsContainer &&
@@ -177,6 +183,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
 
   open(): void {
     super.open();
+    // Access internal suggestions container for observation
     if ((this as any).suggestions?.containerEl && this.observer) {
       try {
         this.observer.observe((this as any).suggestions.containerEl, {
@@ -207,7 +214,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     }
 
     if (this.context) {
-      clearGhostText((this.context.editor as any).cm);
+      clearGhostText((this.context.editor as EditorWithCM).cm);
     }
   }
 
@@ -313,7 +320,13 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     }
   }
 
+  /** Public method to handle synthetic keyboard events from external commands */
+  public handleSyntheticKeybind(evt: KeyboardEvent): void {
+    this.handleKeybinds(evt);
+  }
+
   private updateMenuSelection(): void {
+    // Access internal suggestions API from EditorSuggest
     if ((this as any).suggestions) {
       (this as any).suggestions.setSelectedItem(this.selectedIndex, null);
     }
@@ -324,7 +337,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
 
     const suggestion = this.lastSuggestions[this.selectedIndex];
     const currentWord = this.currentWord;
-    const editor = this.context.editor as any;
+    const editor = this.context.editor as EditorWithCM;
 
     if (suggestion && currentWord && suggestion.word.startsWith(currentWord)) {
       const ghost = suggestion.word.substring(currentWord.length);
@@ -349,7 +362,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     file: TFile | null
   ): EditorSuggestTriggerInfo | null {
     this.selectedIndex = 0;
-    const editorView = (editor as any).cm as EditorView;
+    const editorView = (editor as EditorWithCM).cm;
 
     if (!file) {
       clearGhostText(editorView);
@@ -412,7 +425,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
 
     this.currentWord = currentWord;
     this.lastWord = currentWord.toLowerCase();
-    clearGhostText((editor as any).cm);
+    clearGhostText((editor as EditorWithCM).cm);
 
     if (
       this.cachedSuggestions[this.lastWord] &&
@@ -508,7 +521,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     ) {
       rankEl.setText(`${displayRank}`);
     } else {
-      rankEl.style.display = "none";
+      rankEl.addClass("hidden");
     }
 
     const contentEl = container.createSpan({ cls: "wordserve-suggestion-content" });
@@ -534,7 +547,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     evt: KeyboardEvent | MouseEvent
   ): void {
     if (!this.context) return;
-    const editor = this.context.editor as any;
+    const editor = this.context.editor as EditorWithCM;
     clearGhostText(editor.cm);
 
     const insertSpace =

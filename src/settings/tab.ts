@@ -4,6 +4,7 @@ import { CONFIG } from "../core/config";
 import { AbbreviationDialog } from "../ui/abbrv-dialog";
 import { logger } from "../utils/logger";
 import { keybindManager } from "../settings/keybinds";
+import { WordServePluginSettings } from "../types";
 
 /** Settings tab interface for configuring WordServe plugin behavior and preferences. */
 export class WordServeSettingTab extends PluginSettingTab {
@@ -156,7 +157,7 @@ export class WordServeSettingTab extends PluginSettingTab {
         text
           .setPlaceholder(`${min}-${max}ms`)
           .setValue(this.plugin.settings.debounceTime.toString());
-        const inputEl = (text as any).inputEl as HTMLInputElement;
+        const inputEl = text.inputEl;
         inputEl.setAttribute("type", "number");
         inputEl.setAttribute("min", min.toString());
         inputEl.setAttribute("max", max.toString());
@@ -525,20 +526,15 @@ export class WordServeSettingTab extends PluginSettingTab {
     const debugEventsDetails = containerEl.createEl("details", {
       cls: "typer-debug-events",
     });
-    debugEventsDetails.style.marginTop = "20px";
 
     const summary = debugEventsDetails.createEl("summary", {
       text: "Events",
       cls: "typer-debug-summary",
     });
-    summary.style.cursor = "pointer";
-    summary.style.fontWeight = "600";
-    summary.style.marginBottom = "10px";
 
     const debugContent = debugEventsDetails.createEl("div", {
       cls: "typer-debug-content",
     });
-    debugContent.style.marginLeft = "15px";
 
     debugContent.createEl("p", {
       text: "Control what gets logged to console. Notice that you can view the console via the DevTools [Ctrl+Shift+I] or [Cmd+Option+I] on Mac).",
@@ -772,7 +768,7 @@ export class WordServeSettingTab extends PluginSettingTab {
   }
 
   private onFontSizeChanged(value: string): void {
-    this.plugin.settings.fontSize = value as any;
+    this.plugin.settings.fontSize = value as WordServePluginSettings["fontSize"];
     this.loadFontSizeTheme();
     this.plugin.saveSettings();
   }
@@ -782,7 +778,7 @@ export class WordServeSettingTab extends PluginSettingTab {
   }
 
   private onFontWeightChanged(value: string): void {
-    this.plugin.settings.fontWeight = value as any;
+    this.plugin.settings.fontWeight = value as WordServePluginSettings["fontWeight"];
     this.loadFontWeightTheme();
     this.plugin.saveSettings();
   }

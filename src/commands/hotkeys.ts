@@ -15,7 +15,7 @@ export function hotkeyCmd(plugin: WordServePlugin): Command[] {
             bubbles: true,
             cancelable: true,
           });
-          (plugin.suggestor as any).handleKeybinds(syntheticEvent);
+          plugin.suggestor.handleSyntheticKeybind(syntheticEvent);
         }
       },
     },
@@ -31,7 +31,7 @@ export function hotkeyCmd(plugin: WordServePlugin): Command[] {
             bubbles: true,
             cancelable: true,
           });
-          (plugin.suggestor as any).handleKeybinds(syntheticEvent);
+          plugin.suggestor.handleSyntheticKeybind(syntheticEvent);
         }
       },
     },
