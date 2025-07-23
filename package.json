@@ -1,7 +1,7 @@
 {
   "name": "wordserve-obsidian",
-  "version": "1.0.0",
-  "description": "Fast & Minimal prefix-based Autosuggestions in Obsidian editor",
+  "version": "0.1.2",
+  "description": "Fast & Minimal prefix-based Autosuggestions in Obsidian",
   "main": "main.js",
   "scripts": {
     "build": "bun esbuild.config.mjs production",
@@ -21,7 +21,7 @@
   "obsidianPlugin": {
     "name": "WordServe",
     "minAppVersion": "1.0.0",
-    "description": "Autocomplete & suggestions | for devs & authors",
+    "description": "Autocomplete, suggestions & abbreviations | for devs & authors",
     "isDesktopOnly": true
   },
   "devDependencies": {
