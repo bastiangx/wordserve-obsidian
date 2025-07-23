@@ -1,14 +1,12 @@
 {
   "name": "wordserve-obsidian",
   "version": "1.0.0",
-  "description": "Fast & Minimal prefix-based suggestions in Obsidian editor",
+  "description": "Fast & Minimal prefix-based Autosuggestions in Obsidian editor",
   "main": "main.js",
   "scripts": {
-    "prebuild": "bun scripts/init.js && tsc -noEmit -skipLibCheck",
     "build": "bun esbuild.config.mjs production",
-    "config": "bun scripts/init.js",
-    "version": "bun version-bump.mjs && git add manifest.json versions.json",
-    "dev": "bun esbuild.config.mjs"
+    "dev": "bun esbuild.config.mjs",
+    "version": "bun version-bump.mjs && git add manifest.json versions.json"
   },
   "keywords": [
     "plugin",
@@ -20,6 +18,12 @@
   ],
   "author": "bastiangx",
   "license": "MIT",
+  "obsidianPlugin": {
+    "name": "WordServe",
+    "minAppVersion": "1.0.0",
+    "description": "Autocomplete & suggestions | for devs & authors",
+    "isDesktopOnly": true
+  },
   "devDependencies": {
     "@types/node": "24.0.10",
     "@typescript-eslint/eslint-plugin": "8.35.1",

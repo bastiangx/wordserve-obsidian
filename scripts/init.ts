@@ -790,6 +790,34 @@ body.wordserve-ghost-accent .cm-ghost-text {
   }
 }
 
+/* Debug panel styles */
+.typer-debug-events {
+  margin-top: 20px;
+}
+
+.typer-debug-summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.typer-debug-content {
+  margin-left: 15px;
+}
+
+/* Abbreviation dialog styles */
+.wordserve-abbreviation-dialog {
+  width: 700px;
+  max-width: 90vw;
+  height: 600px;
+  max-height: 80vh;
+}
+
+/* Suggestion rank hidden */
+.wordserve-suggestion-rank.hidden {
+  display: none;
+}
+
 `;
 
 fs.writeFileSync(path.resolve(__dirname, "../styles.css"), cssOut);

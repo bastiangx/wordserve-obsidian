@@ -24,11 +24,6 @@ export class AbbreviationDialog extends Modal {
 
     modalEl.addClass("wordserve-abbreviation-dialog");
 
-    modalEl.style.width = "700px";
-    modalEl.style.maxWidth = "90vw";
-    modalEl.style.height = "600px";
-    modalEl.style.maxHeight = "80vh";
-
     contentEl.empty();
 
     contentEl.createEl("h2", { text: "Shortcuts & Abbreviations" });
