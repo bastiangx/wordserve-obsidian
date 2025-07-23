@@ -33,7 +33,7 @@ export class AbbreviationDialog extends Modal {
     const addButtonContainer = contentEl.createDiv({ cls: "wordserve-add-button-container" });
     const addButton = new ButtonComponent(addButtonContainer);
     addButton
-      .setButtonText("+ Add new")
+      .setButtonText("+ Add")
       .setCta()
       .onClick(() => this.addNewEntry());
 
@@ -50,19 +50,19 @@ export class AbbreviationDialog extends Modal {
 
     this.searchInput = new TextComponent(searchContainer);
     this.searchInput
-      .setPlaceholder("Search by shortcut...")
+      .setPlaceholder("")
       .onChange((value) => {
         this.filterEntries(value);
         this.renderEntries();
       });
 
     const sortContainer = controlsContainer.createDiv({ cls: "wordserve-sort-container" });
-    sortContainer.createEl("label", { text: "Sort by:" });
+    sortContainer.createEl("label", { text: "Sort:" });
 
     const sortSelect = sortContainer.createEl("select");
     const sortOptions = [
-      { value: "newest", text: "Newest first" },
-      { value: "oldest", text: "Oldest first" },
+      { value: "newest", text: "Newest" },
+      { value: "oldest", text: "Oldest" },
       { value: "alphabetical-asc", text: "A-Z" },
       { value: "alphabetical-desc", text: "Z-A" }
     ];
