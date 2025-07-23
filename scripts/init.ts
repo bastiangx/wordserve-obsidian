@@ -16,6 +16,11 @@ if (!("compactMode" in config.plugin)) {
   config.plugin.compactMode = true;
 }
 
+// Ensure ghostTextEnabled is present in config.plugin
+if (!("ghostTextEnabled" in config.plugin)) {
+  config.plugin.ghostTextEnabled = true;
+}
+
 // Ensure autoInsertion is present in config.plugin
 if (!("autoInsertion" in config.plugin)) {
   config.plugin.autoInsertion = false;
@@ -124,6 +129,7 @@ export interface PluginConfig {
   numberSelection: boolean;
   showRankingOverride: boolean;
   compactMode: boolean;
+  ghostTextEnabled: boolean;
   autoInsertion: boolean;
   autoInsertionCommitMode: "space-commits" | "enter-only";
   smartBackspace: boolean;
@@ -224,6 +230,7 @@ export const DEFAULT_SETTINGS: WordServePluginSettings = {
   numberSelection: CONFIG.plugin.numberSelection,
   showRankingOverride: CONFIG.plugin.showRankingOverride,
   compactMode: CONFIG.plugin.compactMode,
+  ghostTextEnabled: CONFIG.plugin.ghostTextEnabled,
   autoInsertion: CONFIG.plugin.autoInsertion,
   autoInsertionCommitMode: CONFIG.plugin.autoInsertionCommitMode,
   smartBackspace: CONFIG.plugin.smartBackspace,

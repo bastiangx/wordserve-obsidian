@@ -14,6 +14,8 @@ numberSelection = true
 showRankingOverride = false
 # Compact mode for tighter UI
 compactMode = true
+# Show ghost text in editor while typing
+ghostTextEnabled = true
 # Auto-insertion of suggestions while typing (on by default)
 autoInsertion = true
 # How auto-inserted suggestions are committed: "space-commits" or "enter-only"

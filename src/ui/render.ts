@@ -117,21 +117,21 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     // Global key handler to track any key press after suggestion insertion
     this.globalKeyHandler = (evt: KeyboardEvent) => {
       if (!this.smartBackspaceEnabled) return;
-      
+
       const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!activeView?.editor) return;
-      
+
       const editor = activeView.editor;
       const cursor = editor.getCursor();
-      
-      // Check if this is backspace and we're at the expected position
+
+      // if this is backspace and we're at the expected position
       if (evt.key === "Backspace" && this.smartBackspace) {
         // For Enter insertion (no space): cursor should be at end of word
         // For Tab insertion (with space): cursor should be after the space
-        const expectedCursorPos = this.lastCommittedWithSpace 
-          ? this.lastCommittedPosition!.ch + 1 
+        const expectedCursorPos = this.lastCommittedWithSpace
+          ? this.lastCommittedPosition!.ch + 1
           : this.lastCommittedPosition!.ch;
-        
+
         if (
           this.lastCommittedPosition &&
           this.lastCommittedWord &&
@@ -141,18 +141,18 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
         ) {
           evt.preventDefault();
           evt.stopPropagation();
-          
+
           // Restore the original word
           const from = {
             line: this.lastCommittedPosition.line,
             ch: this.lastCommittedPosition.ch - this.lastCommittedWord.length,
           };
-          
+
           // If there was a space, remove it too
-          const to = this.lastCommittedWithSpace 
+          const to = this.lastCommittedWithSpace
             ? { line: this.lastCommittedPosition.line, ch: this.lastCommittedPosition.ch + 1 }
             : this.lastCommittedPosition;
-          
+
           editor.replaceRange(
             this.originalWordForBackspace,
             from,
@@ -162,21 +162,21 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
             line: from.line,
             ch: from.ch + this.originalWordForBackspace.length,
           });
-          
+
           // Clear the backspace state
           this.clearSmartBackspaceState();
-          
+
           logger.debug("Smart backspace: Restored original word");
           return;
         }
       }
-      
+
       // Any other key press disables smart backspace
       if (evt.key !== "Backspace") {
         this.clearSmartBackspaceState();
       }
     };
-    
+
     // Add event listener to document
     document.addEventListener("keydown", this.globalKeyHandler, true);
   }
@@ -335,6 +335,10 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
   private updateGhostText(): void {
     if (!this.context) return;
 
+    if (!this.plugin.settings.ghostTextEnabled) {
+      return;
+    }
+
     const suggestion = this.lastSuggestions[this.selectedIndex];
     const currentWord = this.currentWord;
     const editor = this.context.editor as EditorWithCM;
@@ -475,7 +479,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
         this.debounceTimeout = null;
         const query = context.query.toLowerCase();
 
-        // Check cache first
+        // cache first
         const cachedSuggestions = this.getCachedSuggestions(query);
         if (cachedSuggestions) {
           logger.debug(`[WordServeSuggest] Using cached suggestions for: '${query}'`);
@@ -568,9 +572,8 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       ch: this.lastCommittedPosition.ch + (insertSpace ? 1 : 0),
     });
 
-    // Enable smart backspace for immediate use
     this.smartBackspaceEnabled = true;
-    
+
     this.lastWord = "";
   }
 
@@ -648,15 +651,20 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       }
       this.observer = null;
     }
-    
-    // Clean up global backspace handler
+
     if (this.globalBackspaceHandler) {
       document.removeEventListener("keydown", this.globalBackspaceHandler, true);
       this.globalBackspaceHandler = null;
     }
-    
+
     this.cachedSuggestions = {};
     this.cacheAccessOrder = [];
     this.lastSuggestions = [];
+  }
+
+  public clearAllGhostText(): void {
+    if (this.context) {
+      clearGhostText((this.context.editor as EditorWithCM).cm);
+    }
   }
 }

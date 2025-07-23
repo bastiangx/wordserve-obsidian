@@ -5,6 +5,7 @@ export interface WordServePluginSettings {
   numberSelection: boolean;
   showRankingOverride: boolean;
   compactMode: boolean;
+  ghostTextEnabled: boolean;
   fontSize: "smallest" | "smaller" | "small" | "editor" | "ui-small" | "ui-medium" | "ui-larger";
   fontWeight: "thin" | "extralight" | "light" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black";
   debugMode: boolean;

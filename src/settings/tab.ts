@@ -276,6 +276,21 @@ export class WordServeSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Ghost text")
+      .setDesc("Show text preview while typing")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.ghostTextEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.ghostTextEnabled = value;
+            if (!value) {
+              this.plugin.suggestor.clearAllGhostText();
+            }
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("Font size")
       .setDesc("Suggestion text (in-menu)")
       .addDropdown((dropdown) => {
