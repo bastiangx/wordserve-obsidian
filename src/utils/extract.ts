@@ -1,5 +1,5 @@
 import { Editor, EditorPosition } from "obsidian";
-import { hasOnlyNumbersOrSpecialChars, hasNumbers, isSpecialChar } from "./string";
+import { hasOnlyNumbersOrSpecialChars, hasNumbers } from "./string";
 
 export interface CurrentWordContext {
   word: string;

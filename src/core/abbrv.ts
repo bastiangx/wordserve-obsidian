@@ -317,6 +317,7 @@ export class AbbreviationManager {
     if (showNotification) {
       new Notice(`${shortcut} used as shortcut`);
     }
+
     return abbreviation.target;
   }
 }

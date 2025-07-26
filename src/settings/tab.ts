@@ -4,7 +4,6 @@ import { CONFIG } from "../core/config";
 import { AbbreviationDialog } from "../ui/abbrv-dialog";
 import { logger } from "../utils/logger";
 import { keybindManager } from "./keybinds";
-import { WordServePluginSettings } from "../types";
 
 /** Settings tab interface for configuring WordServe plugin behavior and preferences. */
 export class WordServeSettingTab extends PluginSettingTab {
@@ -15,10 +14,10 @@ export class WordServeSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
-  display(): void {
+  async display(): Promise<void> {
     const { containerEl } = this;
     containerEl.empty();
-    this.renderSettings(containerEl);
+    await this.renderSettings(containerEl);
   }
 
   hide(): void {
