@@ -3,7 +3,7 @@ import WordServePlugin from "../../main";
 import { CONFIG } from "../core/config";
 import { AbbreviationDialog } from "../ui/abbrv-dialog";
 import { logger } from "../utils/logger";
-import { keybindManager } from "../settings/keybinds";
+import { keybindManager } from "./keybinds";
 import { WordServePluginSettings } from "../types";
 
 /** Settings tab interface for configuring WordServe plugin behavior and preferences. */
@@ -782,26 +782,14 @@ export class WordServeSettingTab extends PluginSettingTab {
     document.body.setAttribute("data-typer-font-size", this.plugin.settings.fontSize);
   }
 
-  private onFontSizeChanged(value: string): void {
-    this.plugin.settings.fontSize = value as WordServePluginSettings["fontSize"];
-    this.loadFontSizeTheme();
-    this.plugin.saveSettings();
-  }
-
   private loadFontWeightTheme(): void {
     document.body.setAttribute("data-typer-font-weight", this.plugin.settings.fontWeight);
-  }
-
-  private onFontWeightChanged(value: string): void {
-    this.plugin.settings.fontWeight = value as WordServePluginSettings["fontWeight"];
-    this.loadFontWeightTheme();
-    this.plugin.saveSettings();
   }
 }
 
 class DebugWarningModal extends Modal {
-  private onConfirm: () => Promise<void>;
-  private onCancel: () => void;
+  readonly onConfirm: () => Promise<void>;
+  readonly onCancel: () => void;
 
   constructor(app: App, onConfirm: () => Promise<void>, onCancel: () => void) {
     super(app);
@@ -853,8 +841,8 @@ class DebugWarningModal extends Modal {
 }
 
 class AutoRespawnWarningModal extends Modal {
-  private onConfirm: () => Promise<void>;
-  private onCancel: () => void;
+  readonly onConfirm: () => Promise<void>;
+  readonly onCancel: () => void;
 
   constructor(app: App, onConfirm: () => Promise<void>, onCancel: () => void) {
     super(app);
