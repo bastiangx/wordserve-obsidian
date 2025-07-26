@@ -1,5 +1,4 @@
-# Only used on build script
-# These are based on my own preferences and may not suit everyone.
+# Build  defaults based on my personal preferences
 
 [plugin]
 # Min number of chars before showing suggestions

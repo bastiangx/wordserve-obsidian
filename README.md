@@ -40,7 +40,7 @@ Lightweight Autosuggestions and abbrevations for Obsidian!
 
 WordServe is a minimalistic and high performance **Autocompletion plugin** written in Go.
 It suggests top ranking words when typing and exapnsions on abbreviations! simple.
-You can insert them by pressing `Tab` or `Enter` (or pressing the digit keys for vim users ;)
+You can insert them by pressing `Tab` or `Enter` (or pressing the digit keys for vim users ;) )
 
 #### Why?
 
@@ -58,35 +58,9 @@ Suggestions menu appear when typing any words + Expansions on text via abbreviat
 </tr>
 </table>
 
-> [!important]
-> This repo is powered by WordServe's own [Go library](https://github.com/bastiangx/wordserve)! check it out if you want to see how the prefixes are actually processed
-
-## Installation
-
-### Obsidian
-
-Open the _Community plugins_ tab, browse and search for `WordServe`
-
-##### Building and development
-
-```sh
-git clone https://github.com/bastiangx/wordserve-obsidian.git
-cd wordserve-obsidian
-bun i
-bun run dev
-```
-
-> The initial build for dictionary files are handled by the `wordserve` binary itself, If you encounter any issues, refer to the [Go library](https://github.com/bastiangx/wordserve)
-
-> Make sure the `data/` directory exists and has the `words.txt` file in it.
+---
 
 ## Features
-
-### Custom abbrevation expansions
-
-### Digit selection
-
-### Adaptive theme
 
 ### Batched Word Suggestions
 
@@ -95,12 +69,17 @@ bun run dev
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/h26n6q.png">
       <img src="https://files.catbox.moe/h26n6q.png"/>
     </picture>
-
 <br />
 
 WordServe returns suggestions in batches using a radix trie
 
 <br />
+
+### Adaptive theme
+
+### Custom abbrevation expansions
+
+### Digit selection
 
 ### Responsive
 
@@ -109,12 +88,10 @@ WordServe returns suggestions in batches using a radix trie
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/8emcdr.png">
       <img src="https://files.catbox.moe/8emcdr.png"/>
     </picture>
-
+<br />
 <br />
 
-<br />
-
-### Many Many Words
+### Many many words
 
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/z463kh.png">
@@ -128,11 +105,39 @@ Start with a simple `words.txt` file containing 65,000+ entries.
 
 WordServe chunks the dictionary into binary trie files and loads only what's needed, dynamically managing memory based on usage patterns.
 
-<br />
+---
+
+## Installation
+
+### Obsidian
+
+Open the _Community plugins_ tab, browse and search for `WordServe`
+
+#### Building and development
+
+```sh
+git clone https://github.com/bastiangx/wordserve-obsidian.git
+cd wordserve-obsidian
+bun i
+bun run dev
+```
+
+place cloned folder inside Obsidina's plugins directory, Obsidian should load it autmatically by clicking the community plugin's refersh button
+
+```
+~/username/Documents/Vault/.obsidian/plugins/
+```
+
+> The initial build for dictionary files are handled by the `wordserve` binary itself, If you encounter any issues, refer to the [Go library](https://github.com/bastiangx/wordserve)
+
+> Make sure the `data/` directory exists and has the `words.txt` file in it.
+
+> [!important]
+> This repo is powered by WordServe's own [Go library](https://github.com/bastiangx/wordserve)! check it out if you want to see how the prefixes are actually processed
 
 ### DISCLAIMERS
 
-1. The core components **ARE DOWNLOADED FROM GITHUB** via the release versions noted, if plugin version is for example `v0.1.2`, it will only download the `v0.1.2` binaries from [WordServe' repo](https://github.com/bastiangx/wordserve) -- (no mechanisms of auto updating/fetching)
+1. The core components **ARE DOWNLOADED FROM GITHUB** via the release versions noted, if plugin version is for example `v0.1.2`, it will only download the `v0.1.2` binaries from [WordServe' repo](https://github.com/bastiangx/wordserve) -- (no mechanisms of auto updating)
    - These binaries include the `wordserve` Go executable, a `words.txt` file and the dictionary files needed for this to work.
    - all fetching impls are done in [downloader.ts file](./src/core/downloader.ts)
    - If you have any issues with the fetching, you can manually get them from the [releases page](https://github.com/bastiangx/wordserve/releases/latest)

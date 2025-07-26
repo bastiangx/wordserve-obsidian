@@ -22,6 +22,7 @@ export default class WordServePlugin extends Plugin {
   suggestor: WordServeSuggest;
   statusBarEl?: HTMLElement;
   editorExtensions: Extension[] = [];
+  private memoryCleanupInterval?: NodeJS.Timeout;
 
   async onload() {
     await this.loadSettings();
@@ -75,8 +76,22 @@ export default class WordServePlugin extends Plugin {
       }
       logger.error("--FATAL-- WordServe failed to initialize", error);
     }
+
+    // cleanup (10 min)
+    this.memoryCleanupInterval = setInterval(() => {
+      try {
+        this.client.cleanupMemory();
+      } catch (error) {
+        logger.error("Error during scheduled memory cleanup:", error);
+      }
+    }, 10 * 60 * 1000);
   }
   onunload() {
+    if (this.memoryCleanupInterval) {
+      clearInterval(this.memoryCleanupInterval);
+      this.memoryCleanupInterval = undefined;
+    }
+
     this.suggestor?.cleanup();
     this.client.cleanup();
   }
