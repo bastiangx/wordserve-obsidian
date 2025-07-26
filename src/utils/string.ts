@@ -1,18 +1,5 @@
 /** String utility functions for text processing and validation. */
 
-export function hasOnlyNumbersOrSpecialChars(word: string): boolean {
-  return !/[a-zA-Z]/.test(word);
-}
-
-export function hasNumbers(word: string): boolean {
-  return /\d/.test(word);
-}
-
-export function isSpecialChar(char: string): boolean {
-  return /[!@#$%^&*(),.?":{}|<>]/.test(char);
-}
-
-/** Returns array of indexes where uppercase letters appear in the word. */
 export function getCapitalizedIndexes(word: string): number[] {
   const indexes: number[] = [];
   for (let i = 0; i < word.length; i++) {
@@ -23,7 +10,6 @@ export function getCapitalizedIndexes(word: string): number[] {
   return indexes;
 }
 
-/** Applies capitalization to specific character indexes in a word. */
 export function capitalizeWord(word: string, indexes: number[]): string {
   let capitalizedWord = "";
   for (let i = 0; i < word.length; i++) {
@@ -36,13 +22,30 @@ export function capitalizeWord(word: string, indexes: number[]): string {
   return capitalizedWord;
 }
 
-export function capitalizeFirstLetterOfEachWord(s: string): string {
+/** If a word contains only numbers and special characters */
+export function hasOnlyNumbersOrSpecialChars(word: string): boolean {
+  return !/[a-zA-Z]/.test(word);
+}
+
+/** If a word contains numbers */
+export function hasNumbers(word: string): boolean {
+  return /\d/.test(word);
+}
+
+/** If a character is a special character */
+export function isSpecialChar(char: string): boolean {
+  return /[!@#$%^&*(),.?":{}|<>]/.test(char);
+}
+
+/** Capitalizes the first letter of each word in a string */
+export function capitalizeWords(s: string): string {
   return s
     .split(" ")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
 
-export function capitalizeFirstLetter(s: string): string {
+/** Capitalizes only the first letter of a string */
+export function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }

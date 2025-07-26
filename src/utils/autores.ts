@@ -15,7 +15,7 @@ export interface AutoRespawnState {
 export class AutoRespawnManager {
 	private config: AutoRespawnConfig;
 	private state: AutoRespawnState;
-	private onRespawnCallback: () => Promise<boolean>;
+	readonly onRespawnCallback: () => Promise<boolean>;
 
 	constructor(config: AutoRespawnConfig, onRespawnCallback: () => Promise<boolean>) {
 		this.config = config;

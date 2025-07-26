@@ -1,5 +1,3 @@
-export type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
-
 interface TyperSettings {
   debugMode?: boolean;
   debug?: {
@@ -25,7 +23,7 @@ class TyperLogger {
     abbrEvents: false,
   };
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): TyperLogger {
     if (!TyperLogger.instance) {
@@ -121,7 +119,7 @@ class TyperLogger {
         /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?\s*(FATA|ERROR|WARN|INFO|DEBUG)\s+(.+)/
       );
       if (charmMatch) {
-        const [, timestamp, level, message] = charmMatch;
+        const [level, message] = charmMatch;
         const logMessage = `[COR] ${message}`;
 
         switch (level) {
