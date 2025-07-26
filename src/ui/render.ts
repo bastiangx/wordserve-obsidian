@@ -64,15 +64,8 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     this.plugin = plugin;
     this.abbreviationManager = new AbbreviationManager(app, plugin);
 
-    this.scope.register([], "Tab", this.handleKeybinds.bind(this));
-    this.scope.register([], "Enter", this.handleKeybinds.bind(this));
-    this.scope.register([], "ArrowUp", this.handleKeybinds.bind(this));
-    this.scope.register([], "ArrowDown", this.handleKeybinds.bind(this));
-    this.scope.register([], "Escape", this.handleKeybinds.bind(this));
+    this.registerKeybinds();
 
-    for (let i = 1; i <= 9; i++) {
-      this.scope.register([], i.toString(), this.handleKeybinds.bind(this));
-    }
     try {
       this.observer = new MutationObserver((mutations) => {
         try {
@@ -111,6 +104,25 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
 
     // Set up global backspace handler for smart backspace
     this.setupGlobalBackspaceHandler();
+  }
+
+  private registerKeybinds(useDynamicKeys: boolean = false): void {
+    const selectKey = useDynamicKeys
+      ? (keybindManager.getKeysForAction("select")[0] || "Enter")
+      : "Enter";
+    const selectAndSpaceKey = useDynamicKeys
+      ? (keybindManager.getKeysForAction("select_and_space")[0] || "Tab")
+      : "Tab";
+
+    this.scope.register([], selectAndSpaceKey, this.handleKeybinds.bind(this));
+    this.scope.register([], selectKey, this.handleKeybinds.bind(this));
+    this.scope.register([], "ArrowUp", this.handleKeybinds.bind(this));
+    this.scope.register([], "ArrowDown", this.handleKeybinds.bind(this));
+    this.scope.register([], "Escape", this.handleKeybinds.bind(this));
+
+    for (let i = 1; i <= 9; i++) {
+      this.scope.register([], i.toString(), this.handleKeybinds.bind(this));
+    }
   }
 
   private setupGlobalBackspaceHandler(): void {
@@ -218,24 +230,11 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     }
   }
 
-  /** Returns the last fetched suggestions for external */
-  public getLastSuggestions(): Suggestion[] {
-    return this.lastSuggestions;
-  }
 
   /** Updates keybind scope when settings change */
   public updateKeybinds(): void {
     this.scope = new Scope();
-
-    this.scope.register([], keybindManager.getKeysForAction("select")[0] || "Enter", this.handleKeybinds.bind(this));
-    this.scope.register([], keybindManager.getKeysForAction("select_and_space")[0] || "Tab", this.handleKeybinds.bind(this));
-    this.scope.register([], "ArrowUp", this.handleKeybinds.bind(this));
-    this.scope.register([], "ArrowDown", this.handleKeybinds.bind(this));
-    this.scope.register([], "Escape", this.handleKeybinds.bind(this));
-
-    for (let i = 1; i <= 9; i++) {
-      this.scope.register([], i.toString(), this.handleKeybinds.bind(this));
-    }
+    this.registerKeybinds(true);
   }
 
   private handleKeybinds(evt: KeyboardEvent): void {
