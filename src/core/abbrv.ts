@@ -1,5 +1,5 @@
 import { App, normalizePath, Notice, Plugin } from "obsidian";
-import { AbbreviationMap, AbbreviationEntry } from "../types";
+import { AbbreviationEntry, AbbreviationMap } from "../types";
 import { CONFIG } from "./config";
 import { logger } from "../utils/logger";
 import * as path from "path";
@@ -9,14 +9,18 @@ export class AbbreviationManager {
   private app: App;
   private plugin: Plugin;
   private abbreviations: AbbreviationMap = {};
-  private filePath: string;
+  readonly filePath: string;
 
   constructor(app: App, plugin: Plugin) {
     this.app = app;
     this.plugin = plugin;
     this.filePath = this.getPluginDataPath();
     logger.abbrv(`Using abbreviation file path: ${this.filePath}`);
-    this.initialize();
+    this.initialize().then(() =>
+      logger.abbrv(
+        `init with ${Object.keys(this.abbreviations).length} abbreviations`
+      )
+    );
   }
 
   private getPluginDataPath(): string {
@@ -64,7 +68,7 @@ export class AbbreviationManager {
       } catch {
         fileExists = false;
       }
-      
+
       if (!fileExists) {
         await this.createDefaultFile();
         return;
@@ -107,8 +111,8 @@ export class AbbreviationManager {
   private validateAbbreviationMap(data: any): data is AbbreviationMap {
     if (!data || typeof data !== "object") return false;
 
-    for (const [key, value] of Object.entries(data)) {
-      if (typeof key !== "string" || !this.validateAbbreviationEntry(value)) {
+    for (const [value] of Object.entries(data)) {
+      if (!this.validateAbbreviationEntry(value)) {
         return false;
       }
     }
@@ -184,13 +188,11 @@ export class AbbreviationManager {
       return false;
     }
 
-    const entry: AbbreviationEntry = {
+    this.abbreviations[shortcut] = {
       shortcut,
       target,
       created: Date.now(),
     };
-
-    this.abbreviations[shortcut] = entry;
     await this.saveAbbreviations();
     return true;
   }
@@ -219,13 +221,11 @@ export class AbbreviationManager {
       delete this.abbreviations[oldShortcut];
     }
 
-    const entry: AbbreviationEntry = {
+    this.abbreviations[newShortcut] = {
       shortcut: newShortcut,
       target,
       created: this.abbreviations[oldShortcut]?.created || Date.now(),
     };
-
-    this.abbreviations[newShortcut] = entry;
     await this.saveAbbreviations();
     return true;
   }
@@ -312,12 +312,11 @@ export class AbbreviationManager {
     const abbreviation = this.findAbbreviation(shortcut);
     if (!abbreviation) return null;
 
-    logger.abbrv(`Expanding abbreviation: ${shortcut} -> [target text]`);
+    logger.abbrv(`Expanding abbreviation: ${shortcut} -> ${abbreviation.target}`);
 
     if (showNotification) {
       new Notice(`${shortcut} used as shortcut`);
     }
-
     return abbreviation.target;
   }
 }

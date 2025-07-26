@@ -2,8 +2,10 @@ import { Plugin } from "obsidian";
 import * as child_process from "child_process";
 import * as path from "path";
 import * as fs from "fs";
-import { encode, decodeMulti } from "@msgpack/msgpack";
+import * as os from "os";
+import { decodeMulti, encode } from "@msgpack/msgpack";
 import {
+  BackendResponse,
   CompletionRequest,
   CompletionResponse,
   ConfigRequest,
@@ -11,7 +13,6 @@ import {
   DictionaryRequest,
   DictionaryResponse,
   Suggestion,
-  BackendResponse,
   WordServePluginSettings,
 } from "../types";
 import { logger } from "../utils/logger";
@@ -51,7 +52,7 @@ export class WordServeClient {
   private restartAttempts = 0;
   private maxRestartAttempts = 5;
   private restartBackoffMs = 1000;
-  private configManager: ConfigManager;
+  readonly configManager: ConfigManager;
 
   constructor(plugin: WordServePlugin) {
     this.plugin = plugin;
@@ -207,8 +208,7 @@ export class WordServeClient {
     this.initializationMutex = true;
     try {
       this.initializationPromise = this.doInitialize();
-      const result = await this.initializationPromise;
-      return result;
+      return await this.initializationPromise;
     } finally {
       this.initializationMutex = false;
       this.initializationPromise = null;
@@ -256,7 +256,7 @@ export class WordServeClient {
 
   private async startProcess(): Promise<void> {
     const binaryName =
-      process.platform === "win32" ? "wordserve.exe" : "wordserve";
+      os.platform() === "win32" ? "wordserve.exe" : "wordserve";
     const adapter = this.plugin.app.vault.adapter;
     const vaultPath =
       "getBasePath" in adapter
@@ -411,7 +411,7 @@ export class WordServeClient {
     this.requestCallbacks.clear();
     this.usedRequestIds.clear();
 
-    for (const [id, callback] of pendingCallbacks) {
+    for (const [, callback] of pendingCallbacks) {
       try {
         clearTimeout(callback.timer);
         callback.reject(new Error("WordServeClient is shutting down"));
@@ -451,10 +451,12 @@ export class WordServeClient {
     return this.configManager;
   }
 
+  /** Get cached config without reloading from disk */
   getCachedConfig() {
     return this.configManager.getCachedConfig();
   }
 
+  /** Load config from disk and cache it */
   async loadConfig() {
     return await this.configManager.loadConfig();
   }
@@ -466,17 +468,34 @@ export class WordServeClient {
     return this.autoRespawnManager.getStats();
   }
 
+  /** Proactively cleans up memory by removing old request IDs and expired callbacks */
   public cleanupMemory(): void {
+    logger.debug("Starting memory cleanup...");
+
+    // Clean up old request IDs
     this.cleanupOldRequestIds();
+
+    // Clean up expired callbacks
     const now = Date.now();
+    let expiredCount = 0;
+
     for (const [id, callback] of this.requestCallbacks.entries()) {
       const timestampPart = id.split("-")[0];
       const timestamp = parseInt(timestampPart, 36);
+
+      // Remove callbacks older than 5 minutes
       if (now - timestamp > 300000) {
         clearTimeout(callback.timer);
         callback.reject(new Error("Request cleaned up due to age"));
         this.requestCallbacks.delete(id);
+        expiredCount++;
       }
     }
+
+    if (expiredCount > 0) {
+      logger.debug(`Cleaned up ${expiredCount} expired callbacks`);
+    }
+
+    logger.debug(`Memory cleanup complete. Active callbacks: ${this.requestCallbacks.size}, Request IDs: ${this.usedRequestIds.size}`);
   }
 }

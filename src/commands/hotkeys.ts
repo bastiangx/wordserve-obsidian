@@ -21,12 +21,12 @@ export function hotkeyCmd(plugin: WordServePlugin): Command[] {
     },
 
     {
-      id: "navigate-suggestions-down", 
+      id: "navigate-suggestions-down",
       name: "Navigate suggestions down",
       callback: () => {
         if (plugin.suggestor.context) {
           const syntheticEvent = new KeyboardEvent("keydown", {
-            key: "ArrowDown", 
+            key: "ArrowDown",
             code: "ArrowDown",
             bubbles: true,
             cancelable: true,

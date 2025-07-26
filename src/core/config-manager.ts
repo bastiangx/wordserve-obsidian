@@ -168,24 +168,6 @@ export class ConfigManager {
     }
   }
 
-  private async requestConfigReload(): Promise<boolean> {
-    try {
-      const response = await this.client.sendConfigRequest({
-        action: "rebuild_config",
-      });
-
-      if (response.status === "ok") {
-        logger.config("Core config reloaded successfully");
-        return true;
-      }
-
-      logger.error("Failed to reload core config:", response.error);
-      return false;
-    } catch (error) {
-      logger.error("Error requesting config reload:", error);
-      return false;
-    }
-  }
 
   getCachedConfig(): TomlConfig | null {
     return this.cachedConfig;

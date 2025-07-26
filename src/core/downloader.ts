@@ -3,6 +3,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import * as child_process from "child_process";
+import * as os from "os";
 import { logger } from "../utils/logger";
 
 export const GITHUB_REPO = "bastiangx/wordserve";
@@ -21,7 +22,7 @@ interface DownloadResult {
 }
 
 export class WordServeDownloader {
-  private basePath: string;
+  readonly basePath: string;
   private platformInfo: PlatformInfo;
 
   constructor(basePath: string) {
@@ -30,24 +31,24 @@ export class WordServeDownloader {
   }
 
   private detectPlatform(): PlatformInfo {
-    const platform = process.platform;
-    const arch = process.arch;
+    const platform = os.platform();
+    const arch = os.arch();
 
-    let os: string;
+    let osName: string;
     let mappedArch: string;
     let extension: string;
 
     switch (platform) {
       case "darwin":
-        os = "Darwin";
+        osName = "Darwin";
         extension = ".tar.gz";
         break;
       case "linux":
-        os = "Linux";
+        osName = "Linux";
         extension = ".tar.gz";
         break;
       case "win32":
-        os = "Windows";
+        osName = "Windows";
         extension = ".zip";
         break;
       default:
@@ -64,7 +65,7 @@ export class WordServeDownloader {
         throw new Error(`Unsupported architecture: ${arch}`);
     }
 
-    return { os, arch: mappedArch, extension };
+    return { os: osName, arch: mappedArch, extension };
   }
 
   private getAssetUrls() {
@@ -173,7 +174,7 @@ export class WordServeDownloader {
           tempExtractDir
         ]);
       }
-      const binaryFilename = BINARY_NAME + (process.platform === "win32" ? ".exe" : "");
+      const binaryFilename = BINARY_NAME + (os.platform() === "win32" ? ".exe" : "");
       const extractedBinaryPath = await this.findBinaryInExtractedContent(tempExtractDir, binaryFilename);
 
       if (!extractedBinaryPath) {
@@ -182,7 +183,7 @@ export class WordServeDownloader {
 
       const targetBinaryPath = path.join(this.basePath, binaryFilename);
       await fs.promises.copyFile(extractedBinaryPath, targetBinaryPath);
-      if (process.platform !== "win32") {
+      if (os.platform() !== "win32") {
         await fs.promises.chmod(targetBinaryPath, 0o755);
       }
       await fs.promises.rm(tempExtractDir, { recursive: true, force: true });
@@ -276,22 +277,9 @@ export class WordServeDownloader {
     return true;
   }
 
-  private getCommandPaths(command: string): string[] {
-    const paths = [];
-    if (process.platform === "win32") {
-      // Windows common
-      paths.push(`C:\\Program Files\\7-Zip\\7z.exe`);
-      paths.push(`C:\\Windows\\System32\\tar.exe`);
-    } else {
-      paths.push(`/usr/bin/${command}`);
-      paths.push(`/bin/${command}`);
-      paths.push(`/usr/local/bin/${command}`);
-    }
-    return paths;
-  }
 
   private getInstallInstructions(command: string): string {
-    if (process.platform === "win32") {
+    if (os.platform() === "win32") {
       if (command === "tar") {
         return "tar is available (Windows 10+) or install 7-Zip";
       } else if (command === "unzip") {
@@ -309,7 +297,7 @@ export class WordServeDownloader {
 
   private async checkExistingInstallation(): Promise<boolean> {
     try {
-      const binaryPath = path.join(this.basePath, BINARY_NAME + (process.platform === "win32" ? ".exe" : ""));
+      const binaryPath = path.join(this.basePath, BINARY_NAME + (os.platform() === "win32" ? ".exe" : ""));
       const dataDir = path.join(this.basePath, "data");
 
       await fs.promises.access(binaryPath, fs.constants.F_OK);
@@ -439,7 +427,7 @@ export class WordServeDownloader {
       return { success: true };
 
     } catch (error) {
-      let specificError = "Unknown error";
+      let specificError: string;
 
       if (error.message.includes("Failed to download")) {
         specificError = `Network error during download: ${error.message}`;
