@@ -4,8 +4,8 @@
   "description": "Fast & Minimal prefix-based Autosuggestions in Obsidian",
   "main": "main.js",
   "scripts": {
-    "build": "bun esbuild.config.mjs production",
-    "dev": "bun esbuild.config.mjs",
+    "build": "bun run scripts/init.ts && bun esbuild.config.mjs production",
+    "dev": "bun run scripts/init.ts && bun esbuild.config.mjs",
     "version": "bun version-bump.mjs && git add manifest.json versions.json"
   },
   "keywords": [

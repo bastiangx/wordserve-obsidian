@@ -25,6 +25,9 @@ jobs:
       - name: Install deps
         run: bun install
 
+      - name: Generate config files
+        run: bun run scripts/init.ts
+
       - name: Build plugin
         run: bun run build
 
