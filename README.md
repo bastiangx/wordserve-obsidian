@@ -64,6 +64,19 @@ Suggestions menu appear when typing any words + Expansions on text via abbreviat
 
 ### Batched Word Suggestions
 
+Easily find the relevant words and phrases as you type,
+suggestions are shown in a native menu
+
+ <picture>
+      <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/zrosek.gif">
+      <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/ekrdxx.gif">
+      <img src="https://files.catbox.moe/ekrdxx.gif"/>
+    </picture>
+<br />
+
+WordServe returns suggestions in rapid [IPC](https://en.wikipedia.org/wiki/Inter-process_communication) [MessagePacks](https://msgpack.org/index.html).
+Read more about this on [wordserv'e docs](https://github.com/bastiangx/wordserve/blob/main/docs/client.md)
+
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/sd3ikj.png">
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/h26n6q.png">
@@ -71,17 +84,44 @@ Suggestions menu appear when typing any words + Expansions on text via abbreviat
     </picture>
 <br />
 
-WordServe returns suggestions in batches using a radix trie
 
+### Abbrevation expansions
+
+Automatically expands abbreviations as you type,
+for example typing `btw` will expand to `by the way`
+
+ <picture>
+      <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/mlhfbn.gif">
+      <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/5inerx.gif">
+      <img src="https://files.catbox.moe/5inerx.gif"/>
+    </picture>
 <br />
 
-### Adaptive theme
+Easily add and manage your own abbreviations in the settings tab
 
-### Custom abbrevation expansions
+ <picture>
+      <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/d8t3d2.png">
+      <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/6gvijw.png">
+      <img src="https://files.catbox.moe/6gvijw.png"/>
+    </picture>
+<br />
+
 
 ### Digit selection
 
+Use digits on the keyboard to quickly insert a suggestion from the list!
+
+ <picture>
+      <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/5inerx.gif">
+      <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/ex2oww.gif">
+      <img src="https://files.catbox.moe/ex2oww.gif"/>
+    </picture>
+<br />
+
 ### Responsive
+
+Cross-platform and quick to use, built on top of a Go binary.
+Read more about how all this works in our [Go library's docs](https://github.com/bastiangx/wordserve/tree/main/docs)
 
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/ca82mt.png">
@@ -90,6 +130,16 @@ WordServe returns suggestions in batches using a radix trie
     </picture>
 <br />
 <br />
+
+### Colorschemes
+
+ <picture>
+      <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/1aeu53.png">
+      <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/n07i2r.png">
+      <img src="https://files.catbox.moe/n07i2r.png"/>
+    </picture>
+<br />
+Adapts to your Obsidian's current theme! with lots of accessbility options too (font / colors / size)
 
 ### Many many words
 
@@ -103,7 +153,8 @@ WordServe returns suggestions in batches using a radix trie
 
 Start with a simple `words.txt` file containing 65,000+ entries.
 
-WordServe chunks the dictionary into binary trie files and loads only what's needed, dynamically managing memory based on usage patterns.
+WordServe chunks the dictionary into binary trie files and loads only what's needed, 
+managing memory based on usage patterns.
 
 ---
 
