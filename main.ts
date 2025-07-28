@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { Plugin, Notice } from "obsidian";
 import { Extension } from "@codemirror/state";
 import { logger } from "./src/utils/logger";
 import { hotkeyCmd } from "./src/commands/hotkeys";
@@ -59,22 +59,18 @@ export default class WordServePlugin extends Plugin {
     this.updateBodyClasses();
     try {
       const isReady = await this.client.initialize();
-      if (this.settings.debugMode && this.statusBarEl) {
-        if (isReady) {
-          this.statusBarEl.setText("WordServe: Active");
-        } else {
-          this.statusBarEl.setText("WordServe: Inactive");
-        }
+      if (!isReady) {
+        new Notice("WordServe failed to initialize.", 8000);
+        throw new Error("WordServe initialization failed");
       }
-      logger.debug(
-        `WordServe loaded. Core connection: ${isReady ? "Active" : "Inactive"
-        }`
-      );
+      if (this.settings.debugMode && this.statusBarEl) {
+        this.statusBarEl.setText("WordServe: Active");
+      }
+      logger.debug(`WordServe loaded. Core connection: Active`);
     } catch (error) {
-      if (this.settings.debugMode && this.statusBarEl) {
-        this.statusBarEl.setText("WordServe: Error");
-      }
+      new Notice("WordServe initialization error.", 8000);
       logger.error("--FATAL-- WordServe failed to initialize", error);
+      throw error;
     }
 
     // cleanup (10 min)

@@ -2,9 +2,9 @@ import { requestUrl, Notice } from "obsidian";
 import * as path from "path";
 import * as fs from "fs";
 import * as crypto from "crypto";
-import * as child_process from "child_process";
 import * as os from "os";
 import { logger } from "../utils/logger";
+import * as fflate from "fflate";
 
 export const GITHUB_REPO = "bastiangx/wordserve";
 export const TARGET_RELEASE_VERSION = "v0.1.2-beta";
@@ -75,44 +75,46 @@ export class WordServeDownloader {
     return {
       binary: `${baseUrl}/${binaryAsset}`,
       data: `${baseUrl}/data.zip`,
-      checksums: `${baseUrl}/checksums.txt`
+      checksums: `${baseUrl}/checksums.txt`,
     };
   }
 
-  private async downloadAsset(url: string, description: string): Promise<ArrayBuffer> {
+  private async downloadAsset(
+    url: string,
+    description: string
+  ): Promise<ArrayBuffer> {
     try {
       logger.debug(`Downloading ${description} from ${url}`);
       new Notice(`Downloading ${description}...`);
 
       const response = await requestUrl({
         url,
-        method: "GET"
+        method: "GET",
       });
 
       if (response.status !== 200) {
-        throw new Error(`HTTP ${response.status}: Failed to download ${description}`);
+        throw new Error(
+          `HTTP ${response.status}: Failed to download ${description}`
+        );
       }
 
       const arrayBuffer = response.arrayBuffer;
       const sizeInMB = arrayBuffer.byteLength / (1024 * 1024);
 
       if (sizeInMB > 10) {
-        logger.debug(`Downloaded large file: ${description} (${sizeInMB.toFixed(1)}MB)`);
+        logger.debug(
+          `Downloaded large file: ${description} (${sizeInMB.toFixed(1)}MB)`
+        );
       }
 
       if (sizeInMB > 100) {
-        logger.warn(`Very large download: ${description} is ${sizeInMB.toFixed(1)}MB - may impact performance`);
+        logger.warn(
+          `Very large download: ${description} is ${sizeInMB.toFixed(
+            1
+          )}MB - may impact performance`
+        );
         // TODO: For very large files?, should do streaming, tho not likely ever
       }
-
-      if (typeof process !== 'undefined' && process.memoryUsage) {
-        const memUsage = process.memoryUsage();
-        const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
-        if (heapUsedMB > 500) {
-          logger.warn(`High memory usage detected: ${heapUsedMB.toFixed(1)}MB heap used`);
-        }
-      }
-
       return arrayBuffer;
     } catch (error) {
       const errorMsg = `Failed to download ${description}: ${error.message}`;
@@ -121,10 +123,14 @@ export class WordServeDownloader {
     }
   }
 
-  private async verifyChecksum(data: ArrayBuffer, expectedHash: string, filename: string): Promise<boolean> {
-    const hash = crypto.createHash('sha256');
+  private async verifyChecksum(
+    data: ArrayBuffer,
+    expectedHash: string,
+    filename: string
+  ): Promise<boolean> {
+    const hash = crypto.createHash("sha256");
     hash.update(Buffer.from(data));
-    const actualHash = hash.digest('hex');
+    const actualHash = hash.digest("hex");
 
     if (actualHash !== expectedHash) {
       const errorMsg = `Checksum verification failed for ${filename}. Expected: ${expectedHash}, Got: ${actualHash}`;
@@ -139,7 +145,7 @@ export class WordServeDownloader {
 
   private parseChecksums(checksumsContent: string): Map<string, string> {
     const checksums = new Map<string, string>();
-    const lines = checksumsContent.trim().split('\n');
+    const lines = checksumsContent.trim().split("\n");
 
     for (const line of lines) {
       const match = line.match(/^([a-f0-9]{64})\s+(.+)$/);
@@ -152,33 +158,42 @@ export class WordServeDownloader {
   }
 
   private async extractArchive(archiveData: ArrayBuffer): Promise<void> {
-    const tempFileName = `temp_archive_${crypto.randomBytes(8).toString('hex')}`;
-    const archivePath = path.join(this.basePath, tempFileName);
-    const tempExtractDir = path.join(this.basePath, `extract_${crypto.randomBytes(8).toString('hex')}`);
+    if (this.platformInfo.extension === ".tar.gz") {
+      return this.extractTarGz(archiveData);
+    } else if (this.platformInfo.extension === ".zip") {
+      return this.extractZipArchive(archiveData);
+    }
+    throw new Error(
+      `Unsupported archive format: ${this.platformInfo.extension}`
+    );
+  }
+
+  private async extractTarGz(data: ArrayBuffer): Promise<void> {
+    const tempExtractDir = path.join(
+      this.basePath,
+      `extract_${crypto.randomBytes(8).toString("hex")}`
+    );
 
     try {
-      await fs.promises.writeFile(archivePath, Buffer.from(archiveData));
       await fs.promises.mkdir(tempExtractDir, { recursive: true });
-      if (this.platformInfo.extension === ".tar.gz") {
-        await this.runCommand("tar", [
-          "-xzf",
-          archivePath,
-          "-C",
-          tempExtractDir
-        ]);
-      } else if (this.platformInfo.extension === ".zip") {
-        await this.runCommand("unzip", [
-          "-o",
-          archivePath,
-          "-d",
-          tempExtractDir
-        ]);
-      }
-      const binaryFilename = BINARY_NAME + (os.platform() === "win32" ? ".exe" : "");
-      const extractedBinaryPath = await this.findBinaryInExtractedContent(tempExtractDir, binaryFilename);
+
+      // Decompress gzip first
+      const gzipData = new Uint8Array(data);
+      const tarData = fflate.gunzipSync(gzipData);
+
+      // Parse tar manually (simplified tar parsing for binary extraction)
+      const binaryFilename =
+        BINARY_NAME + (os.platform() === "win32" ? ".exe" : "");
+      const extractedBinaryPath = await this.extractBinaryFromTar(
+        tarData,
+        tempExtractDir,
+        binaryFilename
+      );
 
       if (!extractedBinaryPath) {
-        throw new Error(`Binary ${binaryFilename} not found in extracted archive`);
+        throw new Error(
+          `Binary ${binaryFilename} not found in extracted archive`
+        );
       }
 
       const targetBinaryPath = path.join(this.basePath, binaryFilename);
@@ -186,118 +201,130 @@ export class WordServeDownloader {
       if (os.platform() !== "win32") {
         await fs.promises.chmod(targetBinaryPath, 0o755);
       }
-      await fs.promises.rm(tempExtractDir, { recursive: true, force: true });
 
-    } finally {
+      await fs.promises.rm(tempExtractDir, { recursive: true, force: true });
+    } catch (error) {
       try {
-        await fs.promises.unlink(archivePath);
-      } catch (error) {
-        logger.debug(`Failed to cleanup temporary archive: ${error.message}`);
-      }
+        await fs.promises.rm(tempExtractDir, { recursive: true, force: true });
+      } catch { }
+      throw error;
     }
   }
 
-  private async extractZip(zipData: ArrayBuffer, outputDir: string): Promise<void> {
-    const tempFileName = `temp_data_${crypto.randomBytes(8).toString('hex')}.zip`;
-    const zipPath = path.join(this.basePath, tempFileName);
+  private async extractZipArchive(data: ArrayBuffer): Promise<void> {
+    const tempExtractDir = path.join(
+      this.basePath,
+      `extract_${crypto.randomBytes(8).toString("hex")}`
+    );
 
     try {
-      await fs.promises.writeFile(zipPath, Buffer.from(zipData));
-      await this.runCommand("unzip", ["-o", zipPath, "-d", outputDir]);
-    } finally {
+      await fs.promises.mkdir(tempExtractDir, { recursive: true });
+
+      const zipData = new Uint8Array(data);
+      const unzipped = fflate.unzipSync(zipData);
+
+      const binaryFilename =
+        BINARY_NAME + (os.platform() === "win32" ? ".exe" : "");
+      let binaryFound = false;
+
+      for (const [filename, fileData] of Object.entries(unzipped)) {
+        if (
+          filename.endsWith(binaryFilename) ||
+          path.basename(filename) === binaryFilename
+        ) {
+          const targetBinaryPath = path.join(this.basePath, binaryFilename);
+          await fs.promises.writeFile(targetBinaryPath, fileData);
+          if (os.platform() !== "win32") {
+            await fs.promises.chmod(targetBinaryPath, 0o755);
+          }
+          binaryFound = true;
+          break;
+        }
+      }
+
+      if (!binaryFound) {
+        throw new Error(
+          `Binary ${binaryFilename} not found in extracted archive`
+        );
+      }
+
+      await fs.promises.rm(tempExtractDir, { recursive: true, force: true });
+    } catch (error) {
       try {
-        await fs.promises.unlink(zipPath);
-      } catch (error) {
-        logger.debug(`Failed to cleanup temporary zip: ${error.message}`);
-      }
+        await fs.promises.rm(tempExtractDir, { recursive: true, force: true });
+      } catch { }
+      throw error;
     }
   }
 
-  private async runCommand(command: string, args: string[]): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.isValidCommand(command)) {
-        reject(new Error(`Invalid or unsafe command: ${command}`));
-        return;
+  private async extractBinaryFromTar(
+    tarData: Uint8Array,
+    extractDir: string,
+    binaryFilename: string
+  ): Promise<string | null> {
+    let offset = 0;
+
+    while (offset < tarData.length) {
+      if (offset + 512 > tarData.length) break;
+
+      const header = tarData.slice(offset, offset + 512);
+      const nameBytes = header.slice(0, 100);
+      const name = new TextDecoder().decode(nameBytes).replace(/\0.*/, "");
+
+      if (!name) break;
+
+      const sizeBytes = header.slice(124, 136);
+      const sizeStr = new TextDecoder()
+        .decode(sizeBytes)
+        .replace(/\0.*/, "")
+        .replace(/\s/g, "");
+      const size = parseInt(sizeStr, 8) || 0;
+
+      offset += 512;
+
+      if (
+        name.endsWith(binaryFilename) ||
+        path.basename(name) === binaryFilename
+      ) {
+        const fileData = tarData.slice(offset, offset + size);
+        const extractedPath = path.join(extractDir, binaryFilename);
+        await fs.promises.writeFile(extractedPath, fileData);
+        return extractedPath;
       }
+      offset += Math.ceil(size / 512) * 512;
+    }
 
-      if (!this.isValidArgs(args)) {
-        reject(new Error(`Invalid or unsafe arguments provided`));
-        return;
-      }
+    return null;
+  }
 
-      const process = child_process.spawn(command, args, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        timeout: 30000,
-        killSignal: 'SIGTERM'
-      });
+  private async extractZip(
+    zipData: ArrayBuffer,
+    outputDir: string
+  ): Promise<void> {
+    try {
+      await fs.promises.mkdir(outputDir, { recursive: true });
 
-      let stderr = '';
+      const zipBytes = new Uint8Array(zipData);
+      const unzipped = fflate.unzipSync(zipBytes);
 
-      process.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      process.on('error', (error: any) => {
-        if (error.code === 'ENOENT') {
-          reject(new Error(`Command '${command}' not found. Please ensure ${this.getInstallInstructions(command)}`));
-        } else if (error.code === 'ETIMEDOUT') {
-          reject(new Error(`Command '${command}' timed out after 30 seconds`));
-        } else {
-          reject(new Error(`Failed to run ${command}: ${error.message}`));
+      for (const [filename, fileData] of Object.entries(unzipped)) {
+        if (filename.endsWith(".bin")) {
+          const outputPath = path.join(outputDir, path.basename(filename));
+          await fs.promises.writeFile(outputPath, fileData);
+          logger.debug(`Extracted ${filename} to ${outputPath}`);
         }
-      });
-
-      process.on('exit', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          const errorMsg = `${command} exited with code ${code}`;
-          const stderrInfo = stderr ? `: ${stderr.trim()}` : '';
-          reject(new Error(`${errorMsg}${stderrInfo}`));
-        }
-      });
-    });
-  }
-
-  private isValidCommand(command: string): boolean {
-    const allowedCommands = ['tar', 'unzip'];
-    return allowedCommands.includes(command);
-  }
-
-  private isValidArgs(args: string[]): boolean {
-    for (const arg of args) {
-      if (arg.includes(';') || arg.includes('&&') || arg.includes('||') ||
-        arg.includes('`') || arg.includes('$') || arg.includes('|')) {
-        return false;
       }
-      if (arg.length > 1000) {
-        return false;
-      }
+    } catch (error) {
+      throw new Error(`Failed to extract ZIP file: ${error.message}`);
     }
-    return true;
-  }
-
-
-  private getInstallInstructions(command: string): string {
-    if (os.platform() === "win32") {
-      if (command === "tar") {
-        return "tar is available (Windows 10+) or install 7-Zip";
-      } else if (command === "unzip") {
-        return "unzip is available or install 7-Zip";
-      }
-    } else {
-      if (command === "tar") {
-        return "tar is installed (usually available by default)";
-      } else if (command === "unzip") {
-        return "unzip is installed (install via package manager if needed)";
-      }
-    }
-    return `${command} is installed and available in PATH`;
   }
 
   private async checkExistingInstallation(): Promise<boolean> {
     try {
-      const binaryPath = path.join(this.basePath, BINARY_NAME + (os.platform() === "win32" ? ".exe" : ""));
+      const binaryPath = path.join(
+        this.basePath,
+        BINARY_NAME + (os.platform() === "win32" ? ".exe" : "")
+      );
       const dataDir = path.join(this.basePath, "data");
 
       await fs.promises.access(binaryPath, fs.constants.F_OK);
@@ -310,71 +337,22 @@ export class WordServeDownloader {
     }
   }
 
-  private async findBinaryInExtractedContent(extractDir: string, binaryFilename: string): Promise<string | null> {
-    const MAX_SEARCH_DEPTH = 10;
-    try {
-      const directPath = path.join(extractDir, binaryFilename);
-      try {
-        await fs.promises.access(directPath, fs.constants.F_OK);
-        return directPath;
-      } catch {
-        logger.debug(`Binary not found directly at ${directPath}, searching recursively`);
-      }
-      const searchFiles = async (dir: string, currentDepth: number = 0): Promise<string | null> => {
-        if (currentDepth >= MAX_SEARCH_DEPTH) {
-          logger.warn(`Reached maximum search depth (${MAX_SEARCH_DEPTH}) while looking for binary`);
-          return null;
-        }
-        if (!this.validatePath(dir)) {
-          logger.warn(`Skipping invalid path during binary search: ${dir}`);
-          return null;
-        }
-
-        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-
-          if (entry.isDirectory()) {
-            const found = await searchFiles(fullPath, currentDepth + 1);
-            if (found) return found;
-          } else if (entry.name === binaryFilename) {
-            if (this.validatePath(fullPath)) {
-              return fullPath;
-            } else {
-              logger.warn(`Found binary at invalid path, skipping: ${fullPath}`);
-            }
-          }
-        }
-        return null;
-      };
-
-      return await searchFiles(extractDir);
-    } catch (error) {
-      logger.error(`Error searching for binary: ${error.message}`);
-      return null;
-    }
-  }
-
-  private validatePath(filePath: string): boolean {
-    const normalizedPath = path.normalize(filePath);
-    const basePath = path.normalize(this.basePath);
-
-    const resolvedPath = path.resolve(basePath, normalizedPath);
-    return resolvedPath.startsWith(basePath + path.sep) || resolvedPath === basePath;
-  }
-
   public async downloadAndInstall(): Promise<DownloadResult> {
     try {
       if (await this.checkExistingInstallation()) {
-        logger.info("WordServe binary and data already exist, skipping download");
+        logger.info(
+          "WordServe data already exist, skipping download"
+        );
         return { success: true };
       }
 
       await fs.promises.mkdir(this.basePath, { recursive: true });
       const urls = this.getAssetUrls();
 
-      const checksumsData = await this.downloadAsset(urls.checksums, "checksums");
+      const checksumsData = await this.downloadAsset(
+        urls.checksums,
+        "checksums"
+      );
       const checksumsText = new TextDecoder().decode(checksumsData);
       const checksums = this.parseChecksums(checksumsText);
 
@@ -385,23 +363,32 @@ export class WordServeDownloader {
       const dataExpectedHash = checksums.get(dataFilename);
 
       if (!binaryExpectedHash) {
-        throw new Error(`Missing checksum for ${binaryFilename} in checksums.txt`);
+        throw new Error(
+          `Missing checksum for ${binaryFilename} in checksums.txt`
+        );
       }
 
       // NOTE: data.zip is an extra file not included in GoReleaser checksums
       // We'll skip checksum verification for it if not present
       const skipDataChecksum = !dataExpectedHash;
       if (skipDataChecksum) {
-        logger.warn(`No checksum found for ${dataFilename} - skipping verification (extra file)`);
+        logger.warn(
+          `No checksum found for ${dataFilename} - skipping verification (extra file)`
+        );
       }
-      const binaryData = await this.downloadAsset(urls.binary, "WordServe binary");
+      const binaryData = await this.downloadAsset(
+        urls.binary,
+        "WordServe binary"
+      );
       const binaryHashValid = await this.verifyChecksum(
         binaryData,
         binaryExpectedHash,
         binaryFilename
       );
       if (!binaryHashValid) {
-        throw new Error("Binary checksum verification failed - installation aborted for security");
+        throw new Error(
+          "Binary checksum verification failed - installation aborted for security"
+        );
       }
       await this.extractArchive(binaryData);
       const dataData = await this.downloadAsset(urls.data, "data files");
@@ -413,19 +400,24 @@ export class WordServeDownloader {
           dataFilename
         );
         if (!dataHashValid) {
-          throw new Error("Data checksum verification failed - installation aborted for security");
+          throw new Error(
+            "Data checksum verification failed - installation aborted for security"
+          );
         }
       } else {
-        logger.info(`Skipping checksum verification for ${dataFilename} (no checksum available)`);
+        logger.info(
+          `Skipping checksum verification for ${dataFilename} (no checksum available)`
+        );
       }
       const dataDir = path.join(this.basePath, "data");
       await fs.promises.mkdir(dataDir, { recursive: true });
       await this.extractZip(dataData, dataDir);
 
       new Notice("WordServe setup complete!");
-      logger.info("WordServe binary and data successfully downloaded and installed");
+      logger.info(
+        "WordServe binary and data successfully downloaded and installed"
+      );
       return { success: true };
-
     } catch (error) {
       let specificError: string;
 
@@ -437,6 +429,10 @@ export class WordServeDownloader {
         specificError = `Archive extraction error: ${error.message}`;
       } else if (error.message.includes("Missing checksum")) {
         specificError = `Checksum file parsing error: ${error.message}`;
+      } else if (error.message.includes("Failed to extract")) {
+        specificError = `Archive extraction failed: ${error.message}`;
+      } else if (error.message.includes("Invalid gzip")) {
+        specificError = `Archive extraction failed: Corrupted or invalid archive format`;
       } else {
         specificError = error.message;
       }
