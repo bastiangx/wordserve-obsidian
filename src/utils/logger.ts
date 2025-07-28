@@ -1,4 +1,4 @@
-interface TyperSettings {
+interface WordServeSettings {
   debugMode?: boolean;
   debug?: {
     msgpackData?: boolean;
@@ -10,11 +10,11 @@ interface TyperSettings {
   };
 }
 
-/** Singleton logger with category-specific debug control for Typer plugin. */
-class TyperLogger {
-  private static instance: TyperLogger;
+/** Singleton logger with category-specific debug control */
+class WSLogger {
+  private static instance: WSLogger;
   private debugEnabled = false;
-  private debugSettings: TyperSettings["debug"] = {
+  private debugSettings: WordServeSettings["debug"] = {
     msgpackData: false,
     menuRender: false,
     configChange: false,
@@ -25,21 +25,21 @@ class TyperLogger {
 
   private constructor() { }
 
-  static getInstance(): TyperLogger {
-    if (!TyperLogger.instance) {
-      TyperLogger.instance = new TyperLogger();
+  static getInstance(): WSLogger {
+    if (!WSLogger.instance) {
+      WSLogger.instance = new WSLogger();
     }
-    return TyperLogger.instance;
+    return WSLogger.instance;
   }
 
   setDebugMode(enabled: boolean): void {
     this.debugEnabled = enabled;
     if (enabled) {
-      console.log("[TYPER] Debug mode ENABLED");
+      console.log("[WS] Debug mode ENABLED");
     }
   }
 
-  setDebugSettings(debugSettings?: TyperSettings["debug"]): void {
+  setDebugSettings(debugSettings?: WordServeSettings["debug"]): void {
     if (debugSettings) {
       this.debugSettings = { ...this.debugSettings, ...debugSettings };
     }
@@ -47,26 +47,26 @@ class TyperLogger {
 
   debug(message: string, ...args: any[]): void {
     if (this.debugEnabled) {
-      console.log(`[TYPER-DEBUG] ${message}`, ...args);
+      console.log(`[WS-D] ${message}`, ...args);
     }
   }
 
   info(message: string, ...args: any[]): void {
     if (this.debugEnabled) {
-      console.info(`[TYPER-INFO] ${message}`, ...args);
+      console.info(`[WS-I] ${message}`, ...args);
     }
   }
 
   warn(message: string, ...args: any[]): void {
-    console.warn(`[TYPER-WARN] ${message}`, ...args);
+    console.warn(`[WS-P] ${message}`, ...args);
   }
 
   error(message: string, ...args: any[]): void {
-    console.error(`[TYPER-ERROR] ${message}`, ...args);
+    console.error(`[WS-E] ${message}`, ...args);
   }
 
   fatal(message: string, ...args: any[]): void {
-    console.error(`[TYPER-FATAL] ${message}`, ...args);
+    console.error(`[WS-F] ${message}`, ...args);
   }
 
   msgpack(message: string, data?: any): void {
@@ -108,7 +108,7 @@ class TyperLogger {
     }
   }
 
-  /** Parses and categorizes log output from the backend core process. */
+  /** Parses and categorizes log output from the backend core */
   parseCoreLog(logOutput: string): void {
     const lines = logOutput.split("\n");
 
@@ -144,25 +144,25 @@ class TyperLogger {
 
       const fatalMatch = line.match(/FATA.*?(.*)/);
       if (fatalMatch) {
-        this.fatal(`[COR] ${fatalMatch[1] || line}`);
+        this.fatal(`[COR-F] ${fatalMatch[1] || line}`);
         continue;
       }
 
       const errorMatch = line.match(/ERROR.*?(.*)/);
       if (errorMatch) {
-        this.error(`[COR] ${errorMatch[1] || line}`);
+        this.error(`[COR-E] ${errorMatch[1] || line}`);
         continue;
       }
 
       const warnMatch = line.match(/WARN.*?(.*)/);
       if (warnMatch) {
-        this.warn(`[COR] ${warnMatch[1] || line}`);
+        this.warn(`[COR-W] ${warnMatch[1] || line}`);
         continue;
       }
 
       const debugMatch = line.match(/DEBUG.*?(.*)/);
       if (debugMatch && this.debugEnabled) {
-        this.debug(`[COR] ${debugMatch[1] || line}`);
+        this.debug(`[COR-D] ${debugMatch[1] || line}`);
         continue;
       }
 
@@ -171,7 +171,7 @@ class TyperLogger {
         line.includes("Error") ||
         line.includes("error")
       ) {
-        this.error(`[COR] ${line}`);
+        this.error(`[COR-E] ${line}`);
       } else if (this.debugEnabled) {
         this.debug(`[Core] ${line}`);
       }
@@ -179,4 +179,4 @@ class TyperLogger {
   }
 }
 
-export const logger = TyperLogger.getInstance();
+export const logger = WSLogger.getInstance();
