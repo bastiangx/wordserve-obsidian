@@ -21,12 +21,20 @@ import { setGhostText, clearGhostText } from "../editor/ghost-text-extension";
 import WordServePlugin from "../../main";
 import { logger } from "../utils/logger";
 
-// Internal types for CodeMirror integration
 interface EditorWithCM extends Editor {
   cm: EditorView;
 }
 
-/** Main suggestion interface that handles word completion and abbreviation expansion. */
+interface SuggestionsContainer {
+  containerEl: HTMLElement;
+  setSelectedItem(index: number, event: Event | null): void;
+}
+
+interface EditorSuggestWithInternals extends EditorSuggest<Suggestion> {
+  suggestions?: SuggestionsContainer;
+}
+
+/** Main suggestion interface  handles word completion and abbreviation expansion. */
 export class WordServeSuggest extends EditorSuggest<Suggestion> {
   public minChars: number = CONFIG.plugin.minWordLength;
   public maxChars: number = CONFIG.internals.maxChars;
@@ -63,9 +71,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     this.client = client;
     this.plugin = plugin;
     this.abbreviationManager = new AbbreviationManager(app, plugin);
-
     this.registerKeybinds();
-
     try {
       this.observer = new MutationObserver((mutations) => {
         try {
@@ -74,17 +80,21 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
               mutation.type === "attributes" &&
               mutation.attributeName === "class"
             ) {
-              const target = mutation.target as HTMLElement;
-              if (target.classList.contains("is-selected")) {
-                // Access internal suggestions container from EditorSuggest
-                const suggestionsContainer = (this as any).suggestions?.containerEl;
+              const target = mutation.target;
+              if (
+                target instanceof HTMLElement &&
+                target.classList.contains("is-selected")
+              ) {
+                const suggestionsContainer = (
+                  this as EditorSuggestWithInternals
+                ).suggestions?.containerEl;
                 if (
                   suggestionsContainer &&
                   target.parentElement === suggestionsContainer
                 ) {
-                  const index = Array.from(suggestionsContainer.children).indexOf(
-                    target
-                  );
+                  const index = Array.from(
+                    suggestionsContainer.children
+                  ).indexOf(target);
                   if (index !== -1 && this.selectedIndex !== index) {
                     this.selectedIndex = index;
                     this.updateGhostText();
@@ -101,41 +111,33 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       logger.error("Failed to create MutationObserver:", error);
       this.observer = null;
     }
-
-    // Set up global backspace handler for smart backspace
     this.setupGlobalBackspaceHandler();
   }
 
   private registerKeybinds(useDynamicKeys: boolean = false): void {
     const selectKey = useDynamicKeys
-      ? (keybindManager.getKeysForAction("select")[0] || "Enter")
+      ? keybindManager.getKeysForAction("select")[0] || "Enter"
       : "Enter";
     const selectAndSpaceKey = useDynamicKeys
-      ? (keybindManager.getKeysForAction("select_and_space")[0] || "Tab")
+      ? keybindManager.getKeysForAction("select_and_space")[0] || "Tab"
       : "Tab";
-
     this.scope.register([], selectAndSpaceKey, this.handleKeybinds.bind(this));
     this.scope.register([], selectKey, this.handleKeybinds.bind(this));
     this.scope.register([], "ArrowUp", this.handleKeybinds.bind(this));
     this.scope.register([], "ArrowDown", this.handleKeybinds.bind(this));
     this.scope.register([], "Escape", this.handleKeybinds.bind(this));
-
     for (let i = 1; i <= 9; i++) {
       this.scope.register([], i.toString(), this.handleKeybinds.bind(this));
     }
   }
 
   private setupGlobalBackspaceHandler(): void {
-    // Global key handler to track any key press after suggestion insertion
     this.globalKeyHandler = (evt: KeyboardEvent) => {
       if (!this.smartBackspaceEnabled) return;
-
       const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!activeView?.editor) return;
-
       const editor = activeView.editor;
       const cursor = editor.getCursor();
-
       // if this is backspace and we're at the expected position
       if (evt.key === "Backspace" && this.smartBackspace) {
         // For Enter insertion (no space): cursor should be at end of word
@@ -143,7 +145,6 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
         const expectedCursorPos = this.lastCommittedWithSpace
           ? this.lastCommittedPosition!.ch + 1
           : this.lastCommittedPosition!.ch;
-
         if (
           this.lastCommittedPosition &&
           this.lastCommittedWord &&
@@ -153,65 +154,54 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
         ) {
           evt.preventDefault();
           evt.stopPropagation();
-
-          // Restore the original word
           const from = {
             line: this.lastCommittedPosition.line,
             ch: this.lastCommittedPosition.ch - this.lastCommittedWord.length,
           };
-
-          // If there was a space, remove it too
           const to = this.lastCommittedWithSpace
-            ? { line: this.lastCommittedPosition.line, ch: this.lastCommittedPosition.ch + 1 }
+            ? {
+                line: this.lastCommittedPosition.line,
+                ch: this.lastCommittedPosition.ch + 1,
+              }
             : this.lastCommittedPosition;
-
-          editor.replaceRange(
-            this.originalWordForBackspace,
-            from,
-            to
-          );
+          editor.replaceRange(this.originalWordForBackspace, from, to);
           editor.setCursor({
             line: from.line,
             ch: from.ch + this.originalWordForBackspace.length,
           });
-
-          // Clear the backspace state
           this.clearSmartBackspaceState();
-
-          logger.debug("Smart backspace: Restored original word");
           return;
         }
       }
-
-      // Any other key press disables smart backspace
       if (evt.key !== "Backspace") {
         this.clearSmartBackspaceState();
       }
     };
-
-    // Add event listener to document
     document.addEventListener("keydown", this.globalKeyHandler, true);
   }
 
   open(): void {
     super.open();
-    // Access internal suggestions container for observation
-    if ((this as any).suggestions?.containerEl && this.observer) {
+    if (
+      (this as EditorSuggestWithInternals).suggestions?.containerEl &&
+      this.observer
+    ) {
       try {
-        this.observer.observe((this as any).suggestions.containerEl, {
-          attributes: true,
-          subtree: true,
-          attributeFilter: ["class"],
-        });
+        this.observer.observe(
+          (this as EditorSuggestWithInternals).suggestions!.containerEl,
+          {
+            attributes: true,
+            subtree: true,
+            attributeFilter: ["class"],
+          }
+        );
       } catch (error) {
         logger.error("Failed to start MutationObserver:", error);
       }
     }
   }
-
   close(): void {
     super.close();
-
     if (this.observer) {
       try {
         this.observer.disconnect();
@@ -219,17 +209,14 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
         logger.error("Error disconnecting MutationObserver:", error);
       }
     }
-
     if (this.debounceTimeout) {
       clearTimeout(this.debounceTimeout);
       this.debounceTimeout = null;
     }
-
     if (this.context) {
       clearGhostText((this.context.editor as EditorWithCM).cm);
     }
   }
-
 
   /** Updates keybind scope when settings change */
   public updateKeybinds(): void {
@@ -239,7 +226,6 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
 
   private handleKeybinds(evt: KeyboardEvent): void {
     if (!this.context) return;
-
     if (evt.key === "Backspace" && this.smartBackspace) {
       const editor = this.context.editor;
       const cursor = editor.getCursor();
@@ -254,7 +240,6 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
         return;
       }
     }
-
     if (
       this.numberSelectionEnabled &&
       keybindManager.getKeysForAction("numberSelect").includes(evt.key)
@@ -267,7 +252,6 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       this.close();
       return;
     }
-
     if (keybindManager.getKeysForAction("up").includes(evt.key)) {
       evt.preventDefault();
       evt.stopPropagation();
@@ -276,7 +260,6 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       this.updateMenuSelection();
       return;
     }
-
     if (keybindManager.getKeysForAction("down").includes(evt.key)) {
       evt.preventDefault();
       evt.stopPropagation();
@@ -288,15 +271,12 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       this.updateMenuSelection();
       return;
     }
-
     if (
       keybindManager.getKeysForAction("select").includes(evt.key) ||
       keybindManager.getKeysForAction("select_and_space").includes(evt.key)
     ) {
       if (
-        keybindManager
-          .getKeysForAction("select_and_space")
-          .includes(evt.key) &&
+        keybindManager.getKeysForAction("select_and_space").includes(evt.key) &&
         this.lastSuggestions.length === 0
       ) {
         return;
@@ -310,7 +290,6 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       this.close();
       return;
     }
-
     if (keybindManager.getKeysForAction("close").includes(evt.key)) {
       evt.preventDefault();
       evt.stopPropagation();
@@ -319,34 +298,31 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     }
   }
 
-  /** Public method to handle synthetic keyboard events from external commands */
   public handleSyntheticKeybind(evt: KeyboardEvent): void {
     this.handleKeybinds(evt);
   }
 
   private updateMenuSelection(): void {
-    // Access internal suggestions API from EditorSuggest
-    if ((this as any).suggestions) {
-      (this as any).suggestions.setSelectedItem(this.selectedIndex, null);
+    if ((this as EditorSuggestWithInternals).suggestions) {
+      (this as EditorSuggestWithInternals).suggestions!.setSelectedItem(
+        this.selectedIndex,
+        null
+      );
     }
   }
 
   private updateGhostText(): void {
     if (!this.context) return;
-
     if (!this.plugin.settings.ghostTextEnabled) {
       return;
     }
-
     const suggestion = this.lastSuggestions[this.selectedIndex];
     const currentWord = this.currentWord;
     const editor = this.context.editor as EditorWithCM;
-
     if (suggestion && currentWord && suggestion.word.startsWith(currentWord)) {
       const ghost = suggestion.word.substring(currentWord.length);
       requestAnimationFrame(() => {
         if (this.lastSuggestions.length > 0 && this.context) {
-          // Use the end position from context which should be correct
           const doc = editor.cm.state.doc;
           const line = doc.line(this.context.end.line + 1);
           const pos = line.from + this.context.end.ch;
@@ -358,7 +334,6 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     }
   }
 
-  /** if suggestions should be shown based on cursor position and word context. */
   onTrigger(
     cursor: EditorPosition,
     editor: Editor,
@@ -366,20 +341,16 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
   ): EditorSuggestTriggerInfo | null {
     this.selectedIndex = 0;
     const editorView = (editor as EditorWithCM).cm;
-
     if (!file) {
       clearGhostText(editorView);
       return null;
     }
-
     const wordContext = getCurrentWord(editor, cursor);
     if (!wordContext) {
       clearGhostText(editorView);
       return null;
     }
-
     const currentWord = wordContext.word;
-
     if (this.plugin.settings.abbreviationsEnabled && currentWord) {
       const line = editor.getLine(cursor.line);
       const abbreviationResult = this.abbreviationManager.checkForAbbreviation(
@@ -411,13 +382,11 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
         return null;
       }
     }
-
     if (!isWordEligible(currentWord, this.minChars, this.maxChars)) {
       logger.debug(`[WordServeSuggest] Word '${currentWord}' is not eligible.`);
       clearGhostText(editorView);
       return null;
     }
-
     if (
       currentWord.toLowerCase() === this.lastWord &&
       this.lastSuggestions.length === 0
@@ -429,18 +398,17 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     this.currentWord = currentWord;
     this.lastWord = currentWord.toLowerCase();
     clearGhostText((editor as EditorWithCM).cm);
-
     if (
       this.cachedSuggestions[this.lastWord] &&
       this.cachedSuggestions[this.lastWord].length > 0
     ) {
       const capitalizedIndexes = getCapitalizedIndexes(currentWord);
-      this.lastSuggestions = this.getCachedSuggestions(this.lastWord)?.map((s) => ({
-        ...s,
-        word: capitalizeWord(s.word, capitalizedIndexes),
-      })) || [];
+      this.lastSuggestions =
+        this.getCachedSuggestions(this.lastWord)?.map((s) => ({
+          ...s,
+          word: capitalizeWord(s.word, capitalizedIndexes),
+        })) || [];
     }
-
     return {
       start: wordContext.start,
       end: wordContext.end,
@@ -473,15 +441,15 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       if (this.debounceTimeout) {
         clearTimeout(this.debounceTimeout);
       }
-
       this.debounceTimeout = setTimeout(async () => {
         this.debounceTimeout = null;
         const query = context.query.toLowerCase();
-
         // cache first
         const cachedSuggestions = this.getCachedSuggestions(query);
         if (cachedSuggestions) {
-          logger.debug(`[WordServeSuggest] Using cached suggestions for: '${query}'`);
+          logger.debug(
+            `[WordServeSuggest] Using cached suggestions for: '${query}'`
+          );
           const capitalizedIndexes = getCapitalizedIndexes(context.query);
           const suggestions = cachedSuggestions.map((s) => ({
             ...s,
@@ -490,29 +458,30 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
           resolve(suggestions);
           return;
         }
-
         this.requestCounter++;
         try {
           const suggestions = await this.client.getSuggestions(context.query);
-          this.setCachedSuggestions(query, suggestions.map(s => ({ ...s, word: s.word.toLowerCase() })));
-
+          this.setCachedSuggestions(
+            query,
+            suggestions.map((s) => ({ ...s, word: s.word.toLowerCase() }))
+          );
           const capitalizedIndexes = getCapitalizedIndexes(context.query);
           const capitalizedSuggestions = suggestions.map((s) => ({
             ...s,
             word: capitalizeWord(s.word, capitalizedIndexes),
           }));
-
-          logger.debug(`[WordServeSuggest] Fetched ${suggestions.length} suggestions for: '${query}' (request #${this.requestCounter})`);
           resolve(capitalizedSuggestions);
         } catch (error) {
-          logger.error(`[WordServeSuggest] Error fetching suggestions for '${query}':`, error);
+          logger.error(
+            `[WordServeSuggest] Error fetching suggestions for '${query}':`,
+            error
+          );
           resolve([]);
         }
       }, this.debounceDelay);
     });
   }
 
-  /** Renders individual suggestion items with rank indicators and styling. */
   renderSuggestion(suggestion: Suggestion, el: HTMLElement): void {
     el.addClass("suggestion-item");
     const container = el.createDiv({ cls: "wordserve-suggestion-container" });
@@ -526,8 +495,9 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     } else {
       rankEl.addClass("hidden");
     }
-
-    const contentEl = container.createSpan({ cls: "wordserve-suggestion-content" });
+    const contentEl = container.createSpan({
+      cls: "wordserve-suggestion-content",
+    });
     if (this.context && this.context.query) {
       const query = this.context.query;
       const word = suggestion.word;
@@ -552,7 +522,6 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
     if (!this.context) return;
     const editor = this.context.editor as EditorWithCM;
     clearGhostText(editor.cm);
-
     const insertSpace =
       evt instanceof KeyboardEvent &&
       keybindManager.getKeysForAction("select_and_space").includes(evt.key);
@@ -570,9 +539,7 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       ...this.lastCommittedPosition,
       ch: this.lastCommittedPosition.ch + (insertSpace ? 1 : 0),
     });
-
     this.smartBackspaceEnabled = true;
-
     this.lastWord = "";
   }
 
@@ -612,15 +579,12 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
 
   private setCachedSuggestions(query: string, suggestions: Suggestion[]): void {
     this.cachedSuggestions[query] = suggestions;
-
     // Update access order
     const index = this.cacheAccessOrder.indexOf(query);
     if (index > -1) {
       this.cacheAccessOrder.splice(index, 1);
     }
     this.cacheAccessOrder.push(query);
-
-    // cache size limit
     while (this.cacheAccessOrder.length > this.maxCacheSize) {
       const oldestKey = this.cacheAccessOrder.shift();
       if (oldestKey) {
@@ -646,16 +610,21 @@ export class WordServeSuggest extends EditorSuggest<Suggestion> {
       try {
         this.observer.disconnect();
       } catch (error) {
-        logger.error("Error disconnecting MutationObserver during cleanup:", error);
+        logger.error(
+          "Error disconnecting MutationObserver during cleanup:",
+          error
+        );
       }
       this.observer = null;
     }
-
     if (this.globalBackspaceHandler) {
-      document.removeEventListener("keydown", this.globalBackspaceHandler, true);
+      document.removeEventListener(
+        "keydown",
+        this.globalBackspaceHandler,
+        true
+      );
       this.globalBackspaceHandler = null;
     }
-
     this.cachedSuggestions = {};
     this.cacheAccessOrder = [];
     this.lastSuggestions = [];

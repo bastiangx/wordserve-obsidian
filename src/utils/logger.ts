@@ -23,7 +23,7 @@ class WSLogger {
     abbrEvents: false,
   };
 
-  private constructor() { }
+  private constructor() {}
 
   static getInstance(): WSLogger {
     if (!WSLogger.instance) {
@@ -45,31 +45,31 @@ class WSLogger {
     }
   }
 
-  debug(message: string, ...args: any[]): void {
+  debug(message: string, ...args: unknown[]): void {
     if (this.debugEnabled) {
       console.log(`[WS-D] ${message}`, ...args);
     }
   }
 
-  info(message: string, ...args: any[]): void {
+  info(message: string, ...args: unknown[]): void {
     if (this.debugEnabled) {
       console.info(`[WS-I] ${message}`, ...args);
     }
   }
 
-  warn(message: string, ...args: any[]): void {
+  warn(message: string, ...args: unknown[]): void {
     console.warn(`[WS-P] ${message}`, ...args);
   }
 
-  error(message: string, ...args: any[]): void {
+  error(message: string, ...args: unknown[]): void {
     console.error(`[WS-E] ${message}`, ...args);
   }
 
-  fatal(message: string, ...args: any[]): void {
+  fatal(message: string, ...args: unknown[]): void {
     console.error(`[WS-F] ${message}`, ...args);
   }
 
-  msgpack(message: string, data?: any): void {
+  msgpack(message: string, data?: unknown): void {
     if (this.debugEnabled && this.debugSettings?.msgpackData) {
       console.log(`[MP] ${message}`);
       if (data !== undefined && data !== null) {
@@ -78,31 +78,31 @@ class WSLogger {
     }
   }
 
-  menu(message: string, ...args: any[]): void {
+  menu(message: string, ...args: unknown[]): void {
     if (this.debugEnabled && this.debugSettings?.menuRender) {
       console.log(`[MNU] ${message}`, ...args);
     }
   }
 
-  config(message: string, ...args: any[]): void {
+  config(message: string, ...args: unknown[]): void {
     if (this.debugEnabled && this.debugSettings?.configChange) {
       console.log(`[CFG] ${message}`, ...args);
     }
   }
 
-  hotkey(message: string, ...args: any[]): void {
+  hotkey(message: string, ...args: unknown[]): void {
     if (this.debugEnabled && this.debugSettings?.hotkeys) {
       console.log(`[HK] ${message}`, ...args);
     }
   }
 
-  render(message: string, ...args: any[]): void {
+  render(message: string, ...args: unknown[]): void {
     if (this.debugEnabled && this.debugSettings?.renderEvents) {
       console.log(`[RNDR] ${message}`, ...args);
     }
   }
 
-  abbrv(message: string, ...args: any[]): void {
+  abbrv(message: string, ...args: unknown[]): void {
     if (this.debugEnabled && this.debugSettings?.abbrEvents) {
       console.log(`[ABR] ${message}`, ...args);
     }
@@ -111,7 +111,6 @@ class WSLogger {
   /** Parses and categorizes log output from the backend core */
   parseCoreLog(logOutput: string): void {
     const lines = logOutput.split("\n");
-
     for (const line of lines) {
       if (!line.trim()) continue;
 
@@ -121,7 +120,6 @@ class WSLogger {
       if (charmMatch) {
         const [level, message] = charmMatch;
         const logMessage = `[COR] ${message}`;
-
         switch (level) {
           case "FATA":
             this.fatal(logMessage);
@@ -141,31 +139,26 @@ class WSLogger {
         }
         continue;
       }
-
       const fatalMatch = line.match(/FATA.*?(.*)/);
       if (fatalMatch) {
         this.fatal(`[COR-F] ${fatalMatch[1] || line}`);
         continue;
       }
-
       const errorMatch = line.match(/ERROR.*?(.*)/);
       if (errorMatch) {
         this.error(`[COR-E] ${errorMatch[1] || line}`);
         continue;
       }
-
       const warnMatch = line.match(/WARN.*?(.*)/);
       if (warnMatch) {
         this.warn(`[COR-W] ${warnMatch[1] || line}`);
         continue;
       }
-
       const debugMatch = line.match(/DEBUG.*?(.*)/);
       if (debugMatch && this.debugEnabled) {
         this.debug(`[COR-D] ${debugMatch[1] || line}`);
         continue;
       }
-
       if (
         line.includes("Failed") ||
         line.includes("Error") ||

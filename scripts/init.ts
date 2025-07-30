@@ -2,51 +2,95 @@ import * as fs from "fs";
 import * as path from "path";
 import * as toml from "@iarna/toml";
 
+interface TomlPluginConfig {
+  minWordLength: number;
+  maxSuggestions: number;
+  debounceTime: number;
+  numberSelection: boolean;
+  showRankingOverride?: boolean;
+  compactMode?: boolean;
+  ghostTextEnabled?: boolean;
+  autoInsertion?: boolean;
+  autoInsertionCommitMode?: string;
+  smartBackspace?: boolean;
+  fontSize?: string;
+  fontWeight?: string;
+  debugMode: boolean;
+  dictionarySize: number;
+  abbreviationsEnabled?: boolean;
+  abbreviationNotification?: boolean;
+  minPrefix?: number;
+  maxLimit?: number;
+}
+
+interface TomlConfig {
+  plugin: TomlPluginConfig;
+  style?: {
+    padding?: string;
+    compact_padding?: string;
+    rank_size?: number;
+    compact_rank_size?: number;
+    rank_border_radius?: string;
+    rank_margin_right?: number;
+    compact_rank_margin_right?: number;
+    rank_bg_opacity?: number;
+    selected_rank_bg_opacity?: number;
+  };
+  accessibility?: {
+    boldSuffix?: boolean;
+    uppercaseSuggestions?: boolean;
+    prefixColorIntensity?: string;
+    ghostTextColorIntensity?: string;
+  };
+  debug?: {
+    msgpackData?: boolean;
+    menuRender?: boolean;
+    configChange?: boolean;
+    hotkeys?: boolean;
+    renderEvents?: boolean;
+    abbrEvents?: boolean;
+  };
+  abbreviations?: {
+    maxShortcutLength?: number;
+    maxTargetLength?: number;
+    showNotification?: boolean;
+  };
+  autorespawn?: {
+    enabled?: boolean;
+    requestThreshold?: number;
+    timeThresholdMinutes?: number;
+  };
+  [key: string]: unknown;
+}
+
 const tomlPath = path.resolve(__dirname, "../defaults.toml");
 const tomlSrc = fs.readFileSync(tomlPath, "utf-8");
-const config = toml.parse(tomlSrc) as any;
+const config = toml.parse(tomlSrc) as TomlConfig;
 
-// Ensure showRankingOverride is present in config.plugin
 if (!("showRankingOverride" in config.plugin)) {
   config.plugin.showRankingOverride = false;
 }
-
-// Ensure compactMode is present in config.plugin
 if (!("compactMode" in config.plugin)) {
   config.plugin.compactMode = true;
 }
-
-// Ensure ghostTextEnabled is present in config.plugin
 if (!("ghostTextEnabled" in config.plugin)) {
   config.plugin.ghostTextEnabled = true;
 }
-
-// Ensure autoInsertion is present in config.plugin
 if (!("autoInsertion" in config.plugin)) {
   config.plugin.autoInsertion = false;
 }
-
-// Ensure autoInsertionCommitMode is present in config.plugin
 if (!("autoInsertionCommitMode" in config.plugin)) {
   config.plugin.autoInsertionCommitMode = "space-commits";
 }
-
-// Ensure smartBackspace is present in config.plugin
 if (!("smartBackspace" in config.plugin)) {
   config.plugin.smartBackspace = true;
 }
-
-// Ensure fontSize is present in config.plugin
 if (!("fontSize" in config.plugin)) {
   config.plugin.fontSize = "editor";
 }
-
-// Ensure fontWeight is present in config.plugin
 if (!("fontWeight" in config.plugin)) {
   config.plugin.fontWeight = "normal";
 }
-
-// Ensure accessibility config exists
 if (!("accessibility" in config)) {
   config.accessibility = {
     boldSuffix: false,
@@ -55,8 +99,6 @@ if (!("accessibility" in config)) {
     ghostTextColorIntensity: "faint",
   };
 }
-
-// Ensure debug config exists
 if (!("debug" in config)) {
   config.debug = {
     msgpackData: false,
@@ -66,8 +108,6 @@ if (!("debug" in config)) {
     renderEvents: false,
   };
 }
-
-// Ensure abbreviations config exists
 if (!("abbreviations" in config)) {
   config.abbreviations = {
     maxShortcutLength: 10,
@@ -75,22 +115,15 @@ if (!("abbreviations" in config)) {
     showNotification: false,
   };
 }
-
-// Ensure showNotification is present in abbreviations config
-if (!("showNotification" in config.abbreviations)) {
+if (config.abbreviations && !("showNotification" in config.abbreviations)) {
   config.abbreviations.showNotification = false;
 }
-
-// Ensure abbreviationsEnabled is present in plugin config
 if (!("abbreviationsEnabled" in config.plugin)) {
   config.plugin.abbreviationsEnabled = false;
 }
-
-// Ensure abbreviationNotification is present in plugin config
 if (!("abbreviationNotification" in config.plugin)) {
   config.plugin.abbreviationNotification = false;
 }
-
 if (!("autorespawn" in config)) {
   config.autorespawn = {
     enabled: true,
@@ -98,23 +131,18 @@ if (!("autorespawn" in config)) {
     timeThresholdMinutes: 60,
   };
 }
-
-if (!("enabled" in config.autorespawn)) {
+if (config.autorespawn && !("enabled" in config.autorespawn)) {
   config.autorespawn.enabled = true;
 }
-if (!("requestThreshold" in config.autorespawn)) {
+if (config.autorespawn && !("requestThreshold" in config.autorespawn)) {
   config.autorespawn.requestThreshold = 4000;
 }
-if (!("timeThresholdMinutes" in config.autorespawn)) {
+if (config.autorespawn && !("timeThresholdMinutes" in config.autorespawn)) {
   config.autorespawn.timeThresholdMinutes = 60;
 }
-
-// Ensure minPrefix is present in config.plugin
 if (!("minPrefix" in config.plugin)) {
   config.plugin.minPrefix = 2;
 }
-
-// Ensure maxLimit is present in config.plugin
 if (!("maxLimit" in config.plugin)) {
   config.plugin.maxLimit = 50;
 }
@@ -251,6 +279,9 @@ fs.writeFileSync(path.resolve(__dirname, "../src/core/config.ts"), configOut);
 console.log("config.ts generated");
 
 const s = config.style;
+if (!s) {
+  throw new Error("Style configuration is missing from TOML file");
+}
 const cssOut = `/* THIS FILE IS AUTOGENERATED via scripts/ */
 
 /* Suggestions dropdown */
@@ -828,4 +859,3 @@ body.wordserve-ghost-accent .cm-ghost-text {
 `;
 
 fs.writeFileSync(path.resolve(__dirname, "../styles.css"), cssOut);
-console.log("styles.css generated");

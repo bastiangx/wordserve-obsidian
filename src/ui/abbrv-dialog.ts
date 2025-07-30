@@ -75,8 +75,11 @@ export class AbbreviationDialog extends Modal {
     });
 
     sortSelect.addEventListener("change", (e) => {
-      this.sortBy = (e.target as HTMLSelectElement).value as typeof this.sortBy;
-      this.refreshEntries();
+      const target = e.target;
+      if (target instanceof HTMLSelectElement) {
+        this.sortBy = target.value as typeof this.sortBy;
+        this.refreshEntries();
+      }
     });
   }
 
@@ -101,8 +104,8 @@ export class AbbreviationDialog extends Modal {
 
   private renderEntries(container?: HTMLElement) {
     const { contentEl } = this;
-    const entriesContainer = container || contentEl.querySelector(".wordserve-entries-container") as HTMLElement;
-    if (!entriesContainer) return;
+    const entriesContainer = container || contentEl.querySelector(".wordserve-entries-container");
+    if (!(entriesContainer instanceof HTMLElement)) return;
 
     entriesContainer.empty();
 
@@ -184,8 +187,8 @@ export class AbbreviationDialog extends Modal {
       // Update character count
       const container = shortcutInput.inputEl.parentElement;
       if (container) {
-        let counter = container.querySelector(".wordserve-char-counter") as HTMLElement;
-        if (!counter) {
+        let counter = container.querySelector(".wordserve-char-counter");
+        if (!(counter instanceof HTMLElement)) {
           counter = container.createEl("div", { cls: "wordserve-char-counter" });
         }
         counter.textContent = `${value.length}/${CONFIG.abbreviations.maxShortcutLength}`;
@@ -331,8 +334,8 @@ export class AbbreviationDialog extends Modal {
 
   private addNewEntry() {
     const { contentEl } = this;
-    const entriesContainer = contentEl.querySelector(".wordserve-entries-container") as HTMLElement;
-    if (!entriesContainer) return;
+    const entriesContainer = contentEl.querySelector(".wordserve-entries-container");
+    if (!(entriesContainer instanceof HTMLElement)) return;
 
     // Create a temporary entry for the new row
     const newEntry: AbbreviationEntry = {

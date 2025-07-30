@@ -24,13 +24,19 @@ interface WordServePlugin extends Plugin {
   settings: WordServePluginSettings;
 }
 
-const generateId = () => {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2);
-  const counter = ((generateId as any).counter =
-    ((generateId as any).counter || 0) + 1);
-  return `${timestamp}-${random}-${counter}`;
-};
+interface IdGenerator {
+  counter: number;
+}
+
+const generateId = (() => {
+  let counter = 0;
+  return () => {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2);
+    counter = (counter || 0) + 1;
+    return `${timestamp}-${random}-${counter}`;
+  };
+})();
 
 export class WordServeClient {
   private process: child_process.ChildProcess | null = null;
@@ -39,8 +45,8 @@ export class WordServeClient {
   private requestCallbacks = new Map<
     string,
     {
-      resolve: (value: any) => void;
-      reject: (reason?: any) => void;
+      resolve: (value: unknown) => void;
+      reject: (reason?: Error) => void;
       timer: NodeJS.Timeout;
     }
   >();
@@ -61,7 +67,6 @@ export class WordServeClient {
       () => this.restart()
     );
     this.configManager = new ConfigManager(this);
-    // Set up restart callback for config changes
     this.configManager.setRestartCallback(() => this.restart());
   }
 
@@ -73,35 +78,27 @@ export class WordServeClient {
       if (!this.process || !this.process.stdin) {
         return reject(new Error("WordServe process is not running."));
       }
-
       let id = generateId();
       let attempts = 0;
       const maxAttempts = 10;
-
-      // Ensure unique ID
+      // unique ID
       while (this.usedRequestIds.has(id) && attempts < maxAttempts) {
         id = generateId();
         attempts++;
       }
-
       if (attempts >= maxAttempts) {
         return reject(new Error("Unable to generate unique request ID"));
       }
-
       this.usedRequestIds.add(id);
       request.id = id;
-
       const actualTimeout = request.hasOwnProperty("p")
         ? Math.min(timeout, 1500)
         : timeout;
-
       const timer = setTimeout(() => {
         this.cleanupRequest(id);
         reject(new Error(`Request timed out after ${actualTimeout}ms`));
       }, actualTimeout);
-
       this.requestCallbacks.set(id, { resolve, reject, timer });
-
       try {
         const encoded = encode(request);
         this.process.stdin.write(encoded, (err) => {
@@ -224,7 +221,6 @@ export class WordServeClient {
           : "";
       const pluginDir = this.plugin.manifest.dir || ".";
       const pluginPath = path.join(vaultPath, pluginDir);
-
       const downloader = new WordServeDownloader(pluginPath);
       const downloadResult = await downloader.downloadAndInstall();
 
@@ -233,9 +229,7 @@ export class WordServeClient {
           downloadResult.error || "Failed to download WordServe binary"
         );
       }
-
       await this.startProcess();
-
       setTimeout(async () => {
         try {
           await this.configManager.ensureConfigLoaded();
@@ -243,7 +237,6 @@ export class WordServeClient {
           logger.warn("Failed to load TOML config:", error);
         }
       }, 1000);
-
       this.isReady = true;
       logger.debug("WordServeClient initialized successfully.");
       return true;
@@ -284,17 +277,14 @@ export class WordServeClient {
     this.process.on("exit", (code) => {
       logger.debug(`wordserve process exited with code ${code}`);
       this.isReady = false;
-
       if (this.process !== null && !this.isShuttingDown) {
         if (this.restartAttempts < this.maxRestartAttempts) {
           const backoffDelay =
             this.restartBackoffMs * Math.pow(2, this.restartAttempts);
           this.restartAttempts++;
-
           logger.warn(
             `WordServe process died unexpectedly, attempting restart ${this.restartAttempts}/${this.maxRestartAttempts} in ${backoffDelay}ms...`
           );
-
           setTimeout(() => {
             this.restart().catch((err) => {
               logger.error("Failed to auto-restart wordserve process:", err);
@@ -307,12 +297,10 @@ export class WordServeClient {
         }
       }
     });
-
     this.process.on("error", (error) => {
       logger.error("WordServe process error:", error);
       this.isReady = false;
     });
-
     if (!this.process.stdout || !this.process.stderr) {
       throw new Error("Failed to get process stdio");
     }
@@ -325,10 +313,23 @@ export class WordServeClient {
     return new Promise((resolve) => setTimeout(resolve, 200));
   }
 
+  private isBackendResponse(data: unknown): data is BackendResponse {
+    return (
+      typeof data === "object" &&
+      data !== null &&
+      "id" in data &&
+      typeof (data as Record<string, unknown>).id === "string"
+    );
+  }
+
   private handleIncomingData(chunk: Buffer): void {
     try {
       for (const decoded of decodeMulti(chunk)) {
-        this.processResponse(decoded as BackendResponse);
+        if (this.isBackendResponse(decoded)) {
+          this.processResponse(decoded);
+        } else {
+          logger.warn("Received invalid response format", decoded);
+        }
       }
     } catch (error) {
       logger.error("Failed to decode msgpack stream:", error);
@@ -340,11 +341,9 @@ export class WordServeClient {
       logger.warn("Received response without ID", response);
       return;
     }
-
     const callback = this.requestCallbacks.get(response.id);
     if (callback) {
       clearTimeout(callback.timer);
-
       if ("e" in response && response.e) {
         callback.reject(new Error(response.e));
       } else {
@@ -356,19 +355,21 @@ export class WordServeClient {
     }
   }
 
-
   async getDictionaryInfo(): Promise<DictionaryResponse> {
     const request: DictionaryRequest = { action: "get_info" };
     return this.sendRequest<DictionaryResponse>(request);
   }
 
-
   async sendConfigRequest(request: ConfigRequest): Promise<ConfigResponse> {
     if (!this.isReady) {
-      logger.warn("WordServeClient not ready for config request, attempting to reinitialize...");
+      logger.warn(
+        "WordServeClient not ready for config request, attempting to reinitialize..."
+      );
       const success = await this.initialize();
       if (!success) {
-        throw new Error("Failed to initialize WordServeClient for config request");
+        throw new Error(
+          "Failed to initialize WordServeClient for config request"
+        );
       }
     }
     if (!this.process || this.process.killed) {
@@ -396,11 +397,9 @@ export class WordServeClient {
   cleanup() {
     this.isShuttingDown = true;
     this.isReady = false;
-
     if (this.process) {
       const processToKill = this.process;
       this.process = null;
-
       try {
         processToKill.kill();
       } catch (error) {
@@ -428,15 +427,12 @@ export class WordServeClient {
     updates: Partial<WordServePluginSettings>
   ): Promise<boolean> {
     const configUpdates: ConfigUpdateRequest = {};
-
     if (updates.minPrefix !== undefined) {
       configUpdates.minPrefix = updates.minPrefix;
     }
-
     if (updates.maxSuggestions !== undefined) {
       configUpdates.maxLimit = updates.maxSuggestions;
     }
-
     return await this.configManager.updateConfig(configUpdates);
   }
   updateAutoRespawnConfig(config: {
@@ -451,12 +447,10 @@ export class WordServeClient {
     return this.configManager;
   }
 
-  /** Get cached config without reloading from disk */
   getCachedConfig() {
     return this.configManager.getCachedConfig();
   }
 
-  /** Load config from disk and cache it */
   async loadConfig() {
     return await this.configManager.loadConfig();
   }
@@ -468,22 +462,13 @@ export class WordServeClient {
     return this.autoRespawnManager.getStats();
   }
 
-  /** Proactively cleans up memory by removing old request IDs and expired callbacks */
   public cleanupMemory(): void {
-    logger.debug("Starting memory cleanup...");
-
-    // Clean up old request IDs
     this.cleanupOldRequestIds();
-
-    // Clean up expired callbacks
     const now = Date.now();
     let expiredCount = 0;
-
     for (const [id, callback] of this.requestCallbacks.entries()) {
       const timestampPart = id.split("-")[0];
       const timestamp = parseInt(timestampPart, 36);
-
-      // Remove callbacks older than 5 minutes
       if (now - timestamp > 300000) {
         clearTimeout(callback.timer);
         callback.reject(new Error("Request cleaned up due to age"));
@@ -491,11 +476,8 @@ export class WordServeClient {
         expiredCount++;
       }
     }
-
     if (expiredCount > 0) {
       logger.debug(`Cleaned up ${expiredCount} expired callbacks`);
     }
-
-    logger.debug(`Memory cleanup complete. Active callbacks: ${this.requestCallbacks.size}, Request IDs: ${this.usedRequestIds.size}`);
   }
 }

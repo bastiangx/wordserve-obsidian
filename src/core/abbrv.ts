@@ -55,7 +55,9 @@ export class AbbreviationManager {
         if (this.validateAbbreviationMap(pluginData.abbreviations)) {
           this.abbreviations = pluginData.abbreviations;
           logger.abbrv(
-            `Loaded ${Object.keys(this.abbreviations).length} abbreviations from plugin data`
+            `Loaded ${
+              Object.keys(this.abbreviations).length
+            } abbreviations from plugin data`
           );
           return;
         }
@@ -68,15 +70,12 @@ export class AbbreviationManager {
       } catch {
         fileExists = false;
       }
-
       if (!fileExists) {
         await this.createDefaultFile();
         return;
       }
-
       const content = await this.app.vault.adapter.read(this.filePath);
       const data = JSON.parse(content);
-
       if (this.validateAbbreviationMap(data)) {
         this.abbreviations = data;
         logger.abbrv(
@@ -100,35 +99,38 @@ export class AbbreviationManager {
       target: "Star wordserve-obsidian on github NOW!",
       created: Date.now(),
     };
-
     this.abbreviations = {
       STR: defaultEntry,
     };
-
     await this.saveAbbreviations();
   }
 
-  private validateAbbreviationMap(data: any): data is AbbreviationMap {
+  private validateAbbreviationMap(data: unknown): data is AbbreviationMap {
     if (!data || typeof data !== "object") return false;
-
     for (const [value] of Object.entries(data)) {
       if (!this.validateAbbreviationEntry(value)) {
         return false;
       }
     }
-
     return true;
   }
 
-  private validateAbbreviationEntry(entry: any): entry is AbbreviationEntry {
+  private validateAbbreviationEntry(
+    entry: unknown
+  ): entry is AbbreviationEntry {
+    if (!entry || typeof entry !== "object" || entry === null) {
+      return false;
+    }
+    const candidate = entry as Record<string, unknown>;
     return (
-      entry &&
-      typeof entry === "object" &&
-      typeof entry.shortcut === "string" &&
-      typeof entry.target === "string" &&
-      typeof entry.created === "number" &&
-      this.isValidShortcut(entry.shortcut) &&
-      this.isValidTarget(entry.target)
+      "shortcut" in candidate &&
+      "target" in candidate &&
+      "created" in candidate &&
+      typeof candidate.shortcut === "string" &&
+      typeof candidate.target === "string" &&
+      typeof candidate.created === "number" &&
+      this.isValidShortcut(candidate.shortcut) &&
+      this.isValidTarget(candidate.target)
     );
   }
 
@@ -153,7 +155,6 @@ export class AbbreviationManager {
     ) {
       return false;
     }
-
     return (
       !target.includes("\0") &&
       !target.includes("\x01") &&
@@ -163,8 +164,7 @@ export class AbbreviationManager {
 
   private async saveAbbreviations(): Promise<void> {
     try {
-      // Use plugin data storage instead of direct file manipulation
-      const currentData = await this.plugin.loadData() || {};
+      const currentData = (await this.plugin.loadData()) || {};
       currentData.abbreviations = this.abbreviations;
       await this.plugin.saveData(currentData);
       logger.abbrv("Abbreviations saved successfully to plugin data");
@@ -173,13 +173,11 @@ export class AbbreviationManager {
     }
   }
 
-  /** Finds an abbreviation by shortcut. */
   public findAbbreviation(text: string): AbbreviationEntry | null {
     const entry = this.abbreviations[text];
     return entry || null;
   }
 
-  /** Adds a new abbreviation. */
   public async addAbbreviation(
     shortcut: string,
     target: string
@@ -187,7 +185,6 @@ export class AbbreviationManager {
     if (!this.isValidShortcut(shortcut) || !this.isValidTarget(target)) {
       return false;
     }
-
     this.abbreviations[shortcut] = {
       shortcut,
       target,
@@ -197,7 +194,6 @@ export class AbbreviationManager {
     return true;
   }
 
-  /** Removes an abbreviation by shortcut. */
   public async removeAbbreviation(shortcut: string): Promise<boolean> {
     if (shortcut in this.abbreviations) {
       delete this.abbreviations[shortcut];
@@ -207,7 +203,6 @@ export class AbbreviationManager {
     return false;
   }
 
-  /** Updates an existing abbreviation. */
   public async updateAbbreviation(
     oldShortcut: string,
     newShortcut: string,
@@ -216,11 +211,9 @@ export class AbbreviationManager {
     if (!this.isValidShortcut(newShortcut) || !this.isValidTarget(target)) {
       return false;
     }
-
     if (oldShortcut !== newShortcut && oldShortcut in this.abbreviations) {
       delete this.abbreviations[oldShortcut];
     }
-
     this.abbreviations[newShortcut] = {
       shortcut: newShortcut,
       target,
@@ -235,7 +228,6 @@ export class AbbreviationManager {
     return Object.values(this.abbreviations);
   }
 
-  /** Searches abbreviations by shortcut text containing the query string. */
   public searchAbbreviations(query: string): AbbreviationEntry[] {
     const lowerQuery = query.toLowerCase();
     return Object.values(this.abbreviations).filter((entry) =>
@@ -243,7 +235,6 @@ export class AbbreviationManager {
     );
   }
 
-  /** Sorts abbreviation entries by creation date or alphabetically. */
   public sortAbbreviations(
     entries: AbbreviationEntry[],
     sortBy:
@@ -253,7 +244,6 @@ export class AbbreviationManager {
       | "alphabetical-desc" = "newest"
   ): AbbreviationEntry[] {
     const sorted = [...entries];
-
     switch (sortBy) {
       case "newest":
         return sorted.sort((a, b) => b.created - a.created);
@@ -274,7 +264,6 @@ export class AbbreviationManager {
     cursorPos: number
   ): { abbreviation: AbbreviationEntry; start: number; end: number } | null {
     let start = cursorPos;
-
     while (
       start > 0 &&
       /[\p{L}\p{N}\p{P}\p{S}]/u.test(text.charAt(start - 1)) &&
@@ -282,17 +271,12 @@ export class AbbreviationManager {
     ) {
       start--;
     }
-
     if (start === cursorPos) return null;
-
     const potentialShortcut = text.slice(start, cursorPos);
-
     if (potentialShortcut.includes(" ") || potentialShortcut.includes("\t")) {
       return null;
     }
-
     const abbreviation = this.findAbbreviation(potentialShortcut);
-
     if (abbreviation) {
       return {
         abbreviation,
@@ -300,7 +284,6 @@ export class AbbreviationManager {
         end: cursorPos,
       };
     }
-
     return null;
   }
 
@@ -311,13 +294,12 @@ export class AbbreviationManager {
   ): string | null {
     const abbreviation = this.findAbbreviation(shortcut);
     if (!abbreviation) return null;
-
-    logger.abbrv(`Expanding abbreviation: ${shortcut} -> ${abbreviation.target}`);
-
+    logger.abbrv(
+      `Expanding abbreviation: ${shortcut} -> ${abbreviation.target}`
+    );
     if (showNotification) {
       new Notice(`${shortcut} used as shortcut`);
     }
-
     return abbreviation.target;
   }
 }

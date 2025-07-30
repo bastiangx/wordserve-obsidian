@@ -57,14 +57,15 @@ export class ConfigManager {
       const response = await this.client.sendConfigRequest({
         action: "get_config_path",
       });
-
       if (response.status === "ok" && response.config_path) {
         this.configPath = response.config_path;
         logger.config(`Core config path: ${this.configPath}`);
         return this.configPath;
       }
-
-      logger.error("Failed to get config path from core:", response.error || "Unknown error");
+      logger.error(
+        "Failed to get config path from core:",
+        response.error || "Unknown error"
+      );
       return null;
     } catch (error) {
       logger.error("Error getting config path:", error);
@@ -72,19 +73,31 @@ export class ConfigManager {
     }
   }
 
+  private isTomlConfig(data: unknown): data is TomlConfig {
+    return (
+      typeof data === "object" &&
+      data !== null &&
+      "server" in data &&
+      "dict" in data &&
+      "cli" in data
+    );
+  }
+
   async loadConfig(): Promise<TomlConfig | null> {
     const configPath = await this.getConfigPath();
     if (!configPath) {
       return null;
     }
-
     try {
       const configContent = await fs.promises.readFile(configPath, "utf-8");
-      const config = toml.parse(configContent) as unknown as TomlConfig;
-
-      this.cachedConfig = config;
-      logger.config("Loaded TOML config:", config);
-      return config;
+      const parsedConfig = toml.parse(configContent);
+      if (!this.isTomlConfig(parsedConfig)) {
+        logger.error("Invalid TOML config format");
+        return null;
+      }
+      this.cachedConfig = parsedConfig;
+      logger.config("Loaded TOML config:", parsedConfig);
+      return parsedConfig;
     } catch (error) {
       logger.error(`Failed to load config from ${configPath}:`, error);
       return null;
@@ -97,7 +110,6 @@ export class ConfigManager {
       logger.error("Cannot update config: no config path available");
       return false;
     }
-
     try {
       let config = this.cachedConfig;
       if (!config) {
@@ -107,7 +119,6 @@ export class ConfigManager {
           return false;
         }
       }
-
       let hasChanges = false;
       if (
         updates.minPrefix !== undefined &&
@@ -117,7 +128,6 @@ export class ConfigManager {
         hasChanges = true;
         logger.config(`Updated min_prefix: ${updates.minPrefix}`);
       }
-
       if (
         updates.maxLimit !== undefined &&
         updates.maxLimit !== config.server.max_limit
@@ -126,40 +136,37 @@ export class ConfigManager {
         hasChanges = true;
         logger.config(`Updated max_limit: ${updates.maxLimit}`);
       }
-
-      if (
-        updates.dictionarySize !== undefined
-      ) {
+      if (updates.dictionarySize !== undefined) {
         const maxWords = updates.dictionarySize * config.dict.chunk_size;
         if (maxWords !== config.dict.max_words) {
           config.dict.max_words = maxWords;
           hasChanges = true;
-          logger.config(`Updated dictionary max_words: ${maxWords} (${updates.dictionarySize} chunks)`);
+          logger.config(
+            `Updated dictionary max_words: ${maxWords} (${updates.dictionarySize} chunks)`
+          );
         }
       }
-
       if (!hasChanges) {
-        logger.config("No changes to write to config");
         return true;
       }
-
-      const tomlContent = toml.stringify(config as any);
+      const tomlContent = toml.stringify(config as unknown as toml.JsonMap);
       await fs.promises.writeFile(configPath, tomlContent, "utf-8");
-
       this.cachedConfig = config;
       logger.config(`Successfully updated config file: ${configPath}`);
-
-      // Force restart the client process to apply new config
+      // Force restart client
       if (this.restartCallback) {
-        logger.config("Restarting WordServe client to apply new config...");
         const restartSuccess = await this.restartCallback();
         if (!restartSuccess) {
           logger.warn("Config file updated but client restart failed");
           return false;
         }
-        logger.config("WordServe client restarted successfully with new config");
+        logger.config(
+          "WordServe client restarted successfully with new config"
+        );
       } else {
-        logger.warn("No restart callback set, config changes may not take effect until restart");
+        logger.warn(
+          "No restart callback set, config changes may not take effect until restart"
+        );
       }
       return true;
     } catch (error) {
@@ -167,7 +174,6 @@ export class ConfigManager {
       return false;
     }
   }
-
 
   getCachedConfig(): TomlConfig | null {
     return this.cachedConfig;
