@@ -61,7 +61,14 @@ export default class WordServePlugin extends Plugin {
       const isReady = await this.client.initialize();
       if (!isReady) {
         new Notice("WordServe failed to initialize.", 8000);
-        throw new Error("WordServe initialization failed");
+        // Attempt a restart
+        setTimeout(() => {
+          this.client.restart().then((ok) => {
+            if (!ok) {
+              new Notice("WordServe could not recover. Check error logs.", 8000);
+            }
+          });
+        }, 500);
       }
       if (this.settings.debugMode && this.statusBarEl) {
         this.statusBarEl.setText("WordServe: Active");
@@ -70,7 +77,13 @@ export default class WordServePlugin extends Plugin {
     } catch (error) {
       new Notice("WordServe initialization error.", 8000);
       logger.error("--FATAL-- WordServe failed to initialize", error);
-      throw error;
+      setTimeout(() => {
+        this.client.restart().then((ok) => {
+          if (!ok) {
+            new Notice("WordServe could not recover. Check error logs.", 8000);
+          }
+        });
+      }, 500);
     }
 
     // cleanup (10 min)
