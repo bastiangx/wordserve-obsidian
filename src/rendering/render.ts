@@ -17,7 +17,7 @@ import { Suggestion } from "../types";
 import { capitalizeWord, getCapitalizedIndexes } from "../utils/string";
 import { keybindManager } from "../settings/keybinds";
 import { getCurrentWord, isWordEligible } from "../utils/extract";
-import { setGhostText, clearGhostText } from "../editor/ghost-text-extension";
+import { setGhostText, clearGhostText } from "../editor/ghost";
 import WordServePlugin from "../../main";
 import { logger } from "../utils/logger";
 

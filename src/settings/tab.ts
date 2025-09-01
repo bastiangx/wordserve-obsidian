@@ -1,7 +1,7 @@
 import { App, Notice, PluginSettingTab, Setting, Modal } from "obsidian";
 import WordServePlugin from "../../main";
 import { CONFIG } from "../core/config";
-import { AbbreviationDialog } from "../ui/abbrv-dialog";
+import { AbbreviationDialog } from "../rendering/abbrv-modal";
 import { logger } from "../utils/logger";
 import { keybindManager } from "./keybinds";
 
