@@ -25,13 +25,13 @@ export class WordServeSettingTab extends PluginSettingTab {
   }
 
   private async renderSettings(containerEl: HTMLElement): Promise<void> {
-    new Setting(containerEl)
-      .setName("Behavior")
-      .setHeading();
+    new Setting(containerEl).setName("Behavior").setHeading();
 
     new Setting(containerEl)
       .setName("Smart backspace")
-      .setDesc("Restore the original word when pressing backspace after a suggestion is accepted")
+      .setDesc(
+        "Restore the original word when pressing backspace after a suggestion is accepted"
+      )
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.smartBackspace)
@@ -59,7 +59,7 @@ export class WordServeSettingTab extends PluginSettingTab {
             this.plugin.suggestor.minChars = value;
 
             const success = await this.plugin.client.updateConfigFile({
-              minPrefix: value
+              minPrefix: value,
             });
 
             if (success) {
@@ -69,7 +69,7 @@ export class WordServeSettingTab extends PluginSettingTab {
             logger.config("Min word length changed", {
               from: oldValue,
               to: value,
-              tomlUpdated: success
+              tomlUpdated: success,
             });
             await this.plugin.saveSettings();
           })
@@ -92,7 +92,9 @@ export class WordServeSettingTab extends PluginSettingTab {
             const validValue = Math.max(1, Math.min(180, value)); // Ensure value is between 1 and 180
 
             if (validValue !== value) {
-              logger.warn(`Invalid maxSuggestions value: ${value}, using: ${validValue}`);
+              logger.warn(
+                `Invalid maxSuggestions value: ${value}, using: ${validValue}`
+              );
             }
 
             this.plugin.settings.maxSuggestions = validValue;
@@ -100,7 +102,7 @@ export class WordServeSettingTab extends PluginSettingTab {
 
             // Update TOML config file for core
             const success = await this.plugin.client.updateConfigFile({
-              maxSuggestions: value
+              maxSuggestions: value,
             });
 
             if (success) {
@@ -111,7 +113,7 @@ export class WordServeSettingTab extends PluginSettingTab {
             logger.config("Max suggestions changed", {
               from: oldValue,
               to: validValue,
-              tomlUpdated: success
+              tomlUpdated: success,
             });
             await this.plugin.saveSettings();
           })
@@ -132,9 +134,7 @@ export class WordServeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Rankings Override")
-      .setDesc(
-        "Show rankings, even if digit selection is OFF."
-      )
+      .setDesc("Show rankings, even if digit selection is OFF.")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.showRankingOverride)
@@ -148,7 +148,7 @@ export class WordServeSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Debounce time")
       .setDesc("Time to wait after typing to see suggestions")
-      .setTooltip("Enter a number between 1 and 2000 milliseconds",)
+      .setTooltip("Enter a number between 1 and 2000 milliseconds")
       .addText((text) => {
         const min = CONFIG.limits.debounceTime.min;
         const max = CONFIG.limits.debounceTime.max;
@@ -178,9 +178,7 @@ export class WordServeSettingTab extends PluginSettingTab {
       });
 
     // Keybinds Section
-    new Setting(containerEl)
-      .setName("Keybinds")
-      .setHeading();
+    new Setting(containerEl).setName("Keybinds").setHeading();
 
     new Setting(containerEl)
       .setName("Accept suggestion")
@@ -209,9 +207,7 @@ export class WordServeSettingTab extends PluginSettingTab {
       });
 
     // Shortucts Section
-    new Setting(containerEl)
-      .setName("Shortcuts & abbreviations")
-      .setHeading();
+    new Setting(containerEl).setName("Shortcuts & abbreviations").setHeading();
 
     new Setting(containerEl)
       .setName("Abbreviations")
@@ -255,15 +251,11 @@ export class WordServeSettingTab extends PluginSettingTab {
       );
 
     // Rendering Section
-    new Setting(containerEl)
-      .setName("Rendering")
-      .setHeading();
+    new Setting(containerEl).setName("Rendering").setHeading();
 
     new Setting(containerEl)
       .setName("Compact")
-      .setDesc(
-        "UI with smaller paddings and margins"
-      )
+      .setDesc("UI with smaller paddings and margins")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.compactMode)
@@ -354,16 +346,12 @@ export class WordServeSettingTab extends PluginSettingTab {
       });
 
     // Dictionary Section
-    new Setting(containerEl)
-      .setName("Dictionary")
-      .setHeading();
+    new Setting(containerEl).setName("Dictionary").setHeading();
 
     await this.addDictionarySizeSetting(containerEl);
 
     // Accessibility Section
-    new Setting(containerEl)
-      .setName("Accessibility")
-      .setHeading();
+    new Setting(containerEl).setName("Accessibility").setHeading();
 
     new Setting(containerEl)
       .setName("Bold suffix")
@@ -390,7 +378,6 @@ export class WordServeSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
-
 
     new Setting(containerEl)
       .setName("Ghost text color")
@@ -433,41 +420,8 @@ export class WordServeSettingTab extends PluginSettingTab {
       });
 
     // Debug Section
-    new Setting(containerEl)
-      .setName("Debugging")
-      .setHeading();
+    new Setting(containerEl).setName("Debugging").setHeading();
 
-    new Setting(containerEl)
-      .setName("Debug Mode")
-      .setDesc(
-        "Intended for advanced users only: detailed logging, status bar, and debug output from core library. May impact performance slightly"
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.debugMode)
-          .onChange(async (value) => {
-            if (value && !this.plugin.settings.debugMode) {
-              new DebugWarningModal(
-                this.app,
-                async () => {
-                  this.plugin.settings.debugMode = true;
-                  logger.setDebugMode(true);
-                  this.plugin.updateDebugStatusBar();
-                  await this.plugin.saveSettings();
-                  toggle.setValue(true);
-                },
-                () => {
-                  toggle.setValue(false);
-                }
-              ).open();
-            } else {
-              this.plugin.settings.debugMode = value;
-              logger.setDebugMode(value);
-              this.plugin.updateDebugStatusBar();
-              await this.plugin.saveSettings();
-            }
-          })
-      );
     this.createDebugEventsSection(containerEl);
   }
 
@@ -475,7 +429,10 @@ export class WordServeSettingTab extends PluginSettingTab {
     const body = document.body;
 
     // Compact mode
-    body.toggleClass("wordserve-compact-mode", this.plugin.settings.compactMode);
+    body.toggleClass(
+      "wordserve-compact-mode",
+      this.plugin.settings.compactMode
+    );
 
     // Font size classes
     body.removeClass(
@@ -541,111 +498,60 @@ export class WordServeSettingTab extends PluginSettingTab {
       cls: "typer-debug-events",
     });
 
-    const summary = debugEventsDetails.createEl("summary", {
-      text: "Events",
-      cls: "typer-debug-summary",
-    });
-
     const debugContent = debugEventsDetails.createEl("div", {
       cls: "typer-debug-content",
     });
 
-    debugContent.createEl("p", {
-      text: "Control what gets logged to console. Notice that you can view the console via the DevTools [Ctrl+Shift+I] or [Cmd+Option+I] on Mac).",
-      cls: "setting-item-description",
-    });
-
-    // MessagePack data logging
+    // Error log actions (copy/clear)
     new Setting(debugContent)
-      .setName("MessagePack [MP]")
-      .setDesc("MessagePack data processing")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.debug.msgpackData)
-          .onChange(async (value) => {
-            this.plugin.settings.debug.msgpackData = value;
-            logger.setDebugSettings(this.plugin.settings.debug);
-            logger.config("Debug option changed", { msgpackData: value });
-            await this.plugin.saveSettings();
-          })
-      );
-
-    // Menu render events
-    new Setting(debugContent)
-      .setName("Menu render [MENU]")
-      .setDesc(
-        "Suggestion menu UI info: rows, styling, colors, themes, digit selection display (excludes suggestion content)"
+      .setName("Error logs")
+      .setDesc("Useful for troubleshooting and sharing issues")
+      .addButton((button) =>
+        button.setButtonText("Copy logs").onClick(async () => {
+          try {
+            const tomlText = (await logger.readErrorLog()) || "";
+            if (!tomlText.trim()) {
+              new Notice("No logs found");
+              return;
+            }
+            const copied = await this.copyTextToClipboard(tomlText);
+            if (copied) {
+              new Notice("Error logs copied to clipboard");
+            } else {
+              new Notice("Failed to copy error logs");
+            }
+          } catch (error) {
+            logger.error("Failed to copy error logs:", error);
+            new Notice("Failed to copy error logs");
+          }
+        })
       )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.debug.menuRender)
-          .onChange(async (value) => {
-            this.plugin.settings.debug.menuRender = value;
-            logger.setDebugSettings(this.plugin.settings.debug);
-            logger.config("Debug option changed", { menuRender: value });
-            await this.plugin.saveSettings();
-          })
-      );
-
-    // Config change events (includes settings)
-    new Setting(debugContent)
-      .setName("Config & settings [CFG]")
-      .setDesc(
-        "Plugin settings changes & config updates"
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.debug.configChange)
-          .onChange(async (value) => {
-            this.plugin.settings.debug.configChange = value;
-            logger.setDebugSettings(this.plugin.settings.debug);
-            logger.config("Debug option changed", { configChange: value });
-            await this.plugin.saveSettings();
-          })
-      );
-
-    // Render events
-    new Setting(debugContent)
-      .setName("Render [RENDER] (Verbose)")
-      .setDesc(
-        "Detailed menu positioning, sizing & DOM - very verbose"
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.debug.renderEvents)
-          .onChange(async (value) => {
-            this.plugin.settings.debug.renderEvents = value;
-            logger.setDebugSettings(this.plugin.settings.debug);
-            logger.config("Debug option changed", { renderEvents: value });
-            await this.plugin.saveSettings();
-          })
-      );
-
-    // Abbreviation events
-    new Setting(debugContent)
-      .setName("Abbreviation [ABBR]")
-      .setDesc("Abbreviation|shortcut expansions details")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.debug.abbrEvents)
-          .onChange(async (value) => {
-            this.plugin.settings.debug.abbrEvents = value;
-            logger.setDebugSettings(this.plugin.settings.debug);
-            logger.config("Debug option changed", { abbrEvents: value });
-            await this.plugin.saveSettings();
-          })
+      .addButton((button) =>
+        button.setButtonText("Clear logs").onClick(async () => {
+          try {
+            await logger.clearErrorLog();
+            new Notice("Logs cleared");
+          } catch (error) {
+            logger.error("Failed to clear error logs:", error);
+            new Notice("Failed to clear error logs");
+          }
+        })
       );
 
     // Auto-respawn status display
     const autoRespawnStats = this.plugin.client.getAutoRespawnStats();
     new Setting(debugContent)
       .setName("Auto-respawn status")
-      .setDesc(`Requests: ${autoRespawnStats.requestCount}/${this.plugin.settings.autorespawn.requestThreshold} | Time: ${autoRespawnStats.minutesSinceLastRespawn}/${this.plugin.settings.autorespawn.timeThresholdMinutes} min`)
+      .setDesc(
+        `Requests: ${autoRespawnStats.requestCount}/${this.plugin.settings.autorespawn.requestThreshold} | Time: ${autoRespawnStats.minutesSinceLastRespawn}/${this.plugin.settings.autorespawn.timeThresholdMinutes} min`
+      )
       .setClass("typer-stats-display");
 
     new Setting(debugContent)
       .setName("Auto-respawn")
-      .setDesc("Automatically restart the spawned process. Disabling this may cause issues")
+      .setDesc(
+        "Automatically restart the spawned process. Disabling this may cause issues"
+      )
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.autorespawn.enabled)
@@ -706,6 +612,32 @@ export class WordServeSettingTab extends PluginSettingTab {
       );
   }
 
+  private async copyTextToClipboard(text: string): Promise<boolean> {
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // fallthrough to legacy path
+    }
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-1000px";
+      textarea.style.top = "-1000px";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
   private async addDictionarySizeSetting(
     containerEl: HTMLElement
   ): Promise<void> {
@@ -724,42 +656,42 @@ export class WordServeSettingTab extends PluginSettingTab {
           dropdown.addOption(i.toString(), `${words}K`);
         }
 
-        dropdown
-          .setValue(currentSize.toString())
-          .onChange(async (value) => {
-            const newSize = parseInt(value);
-            const oldSize = this.plugin.settings.dictionarySize;
+        dropdown.setValue(currentSize.toString()).onChange(async (value) => {
+          const newSize = parseInt(value);
+          const oldSize = this.plugin.settings.dictionarySize;
 
-            if (isNaN(newSize) || newSize < 1 || newSize > maxChunks) {
-              new Notice("Invalid dictionary size");
-              dropdown.setValue(oldSize.toString());
-              return;
-            }
+          if (isNaN(newSize) || newSize < 1 || newSize > maxChunks) {
+            new Notice("Invalid dictionary size");
+            dropdown.setValue(oldSize.toString());
+            return;
+          }
 
-            if (newSize !== oldSize) {
-              try {
-                const updateSuccess = await this.plugin.client.getConfigManager().updateConfig({
+          if (newSize !== oldSize) {
+            try {
+              const updateSuccess = await this.plugin.client
+                .getConfigManager()
+                .updateConfig({
                   dictionarySize: newSize,
                 });
-                if (updateSuccess) {
-                  this.plugin.settings.dictionarySize = newSize;
-                  await this.plugin.saveSettings();
-                  logger.config("Dictionary size changed", {
-                    from: oldSize,
-                    to: newSize,
-                  });
-                  new Notice(`Dictionary size updated`);
-                } else {
-                  new Notice(`Failed to update dictionary size in config file`);
-                  dropdown.setValue(oldSize.toString());
-                }
-              } catch (error) {
-                logger.error("Failed to update dictionary size:", error);
-                new Notice("Failed to update dictionary size");
+              if (updateSuccess) {
+                this.plugin.settings.dictionarySize = newSize;
+                await this.plugin.saveSettings();
+                logger.config("Dictionary size changed", {
+                  from: oldSize,
+                  to: newSize,
+                });
+                new Notice(`Dictionary size updated`);
+              } else {
+                new Notice(`Failed to update dictionary size in config file`);
                 dropdown.setValue(oldSize.toString());
               }
+            } catch (error) {
+              logger.error("Failed to update dictionary size:", error);
+              new Notice("Failed to update dictionary size");
+              dropdown.setValue(oldSize.toString());
             }
-          });
+          }
+        });
       });
   }
 
@@ -778,66 +710,21 @@ export class WordServeSettingTab extends PluginSettingTab {
   }
 
   private loadFontSizeTheme(): void {
-    document.body.setAttribute("data-typer-font-size", this.plugin.settings.fontSize);
+    document.body.setAttribute(
+      "data-typer-font-size",
+      this.plugin.settings.fontSize
+    );
   }
 
   private loadFontWeightTheme(): void {
-    document.body.setAttribute("data-typer-font-weight", this.plugin.settings.fontWeight);
+    document.body.setAttribute(
+      "data-typer-font-weight",
+      this.plugin.settings.fontWeight
+    );
   }
 }
 
-class DebugWarningModal extends Modal {
-  readonly onConfirm: () => Promise<void>;
-  readonly onCancel: () => void;
-
-  constructor(app: App, onConfirm: () => Promise<void>, onCancel: () => void) {
-    super(app);
-    this.onConfirm = onConfirm;
-    this.onCancel = onCancel;
-  }
-
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("h2", { text: "Enable Debug Mode?" });
-
-    contentEl.createEl("p", {
-      text: "Debug mode is intended for advanced users and developers only.",
-    });
-    contentEl.createEl("p", { text: "It will:" });
-
-    const list = contentEl.createEl("ul");
-    list.createEl("li", { text: "Enable detailed console logging" });
-    list.createEl("li", { text: "Show status bar with connection status" });
-    list.createEl("li", { text: "Enable debug output from core library" });
-    list.createEl("li", { text: "Display core library messages" });
-    list.createEl("li", { text: "May impact performance" });
-
-    contentEl.createEl("p", { text: "Are you sure you want to continue?" });
-
-    const buttonContainer = contentEl.createDiv({
-      cls: "modal-button-container",
-    });
-
-    const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
-    cancelButton.onclick = () => {
-      this.onCancel();
-      this.close();
-    };
-
-    const confirmButton = buttonContainer.createEl("button", {
-      text: "Enable Debug Mode",
-      cls: "mod-warning",
-    });
-    confirmButton.onclick = async () => {
-      await this.onConfirm();
-      this.close();
-    };
-  }
-
-  onClose() {
-    this.contentEl.empty();
-  }
-}
+// DebugWarningModal removed
 
 class AutoRespawnWarningModal extends Modal {
   readonly onConfirm: () => Promise<void>;
@@ -859,14 +746,16 @@ class AutoRespawnWarningModal extends Modal {
 
     contentEl.createEl("p", {
       text: "Disabling this feature may cause bigger memory usage",
-      cls: "mod-warning"
+      cls: "mod-warning",
     });
 
     const buttonContainer = contentEl.createDiv({
       cls: "modal-button-container",
     });
 
-    const cancelButton = buttonContainer.createEl("button", { text: "Keep Enabled" });
+    const cancelButton = buttonContainer.createEl("button", {
+      text: "Keep Enabled",
+    });
     cancelButton.onclick = () => {
       this.onCancel();
       this.close();

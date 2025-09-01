@@ -1,29 +1,26 @@
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+import * as TOML from "@iarna/toml";
+
 interface WordServeSettings {
   debugMode?: boolean;
-  debug?: {
-    msgpackData?: boolean;
-    menuRender?: boolean;
-    configChange?: boolean;
-    hotkeys?: boolean;
-    renderEvents?: boolean;
-    abbrEvents?: boolean;
-  };
+  debug?: Record<string, unknown>;
 }
 
 /** Singleton logger with category-specific debug control */
 class WSLogger {
   private static instance: WSLogger;
   private debugEnabled = false;
-  private debugSettings: WordServeSettings["debug"] = {
-    msgpackData: false,
-    menuRender: false,
-    configChange: false,
-    hotkeys: false,
-    renderEvents: false,
-    abbrEvents: false,
-  };
+  private logDirectoryPath: string;
+  private errorLogFilePath: string;
 
-  private constructor() {}
+  private constructor() {
+    const baseDir = path.join(os.tmpdir(), "wordserve");
+    this.logDirectoryPath = baseDir;
+    this.errorLogFilePath = path.join(baseDir, "error-log.toml");
+    this.ensureLogDirectory();
+  }
 
   static getInstance(): WSLogger {
     if (!WSLogger.instance) {
@@ -34,78 +31,36 @@ class WSLogger {
 
   setDebugMode(enabled: boolean): void {
     this.debugEnabled = enabled;
-    if (enabled) {
-      console.log("[WS] Debug mode ENABLED");
-    }
   }
 
-  setDebugSettings(debugSettings?: WordServeSettings["debug"]): void {
-    if (debugSettings) {
-      this.debugSettings = { ...this.debugSettings, ...debugSettings };
-    }
+  setDebugSettings(_debugSettings?: WordServeSettings["debug"]): void {}
+
+  debug(_message: string, ..._args: unknown[]): void {
+    // suppressed
   }
 
-  debug(message: string, ...args: unknown[]): void {
-    if (this.debugEnabled) {
-      console.log(`[WS-D] ${message}`, ...args);
-    }
-  }
-
-  info(message: string, ...args: unknown[]): void {
-    if (this.debugEnabled) {
-      console.info(`[WS-I] ${message}`, ...args);
-    }
+  info(_message: string, ..._args: unknown[]): void {
+    // suppressed
   }
 
   warn(message: string, ...args: unknown[]): void {
-    console.warn(`[WS-P] ${message}`, ...args);
+    this.appendErrorLog("WARN", message, args);
   }
 
   error(message: string, ...args: unknown[]): void {
-    console.error(`[WS-E] ${message}`, ...args);
+    this.appendErrorLog("ERROR", message, args);
   }
 
   fatal(message: string, ...args: unknown[]): void {
-    console.error(`[WS-F] ${message}`, ...args);
+    this.appendErrorLog("FATAL", message, args);
   }
 
-  msgpack(message: string, data?: unknown): void {
-    if (this.debugEnabled && this.debugSettings?.msgpackData) {
-      console.log(`[MP] ${message}`);
-      if (data !== undefined && data !== null) {
-        console.log("[MP] Data:", data);
-      }
-    }
+  config(_message: string, ..._args: unknown[]): void {
+    // suppressed
   }
 
-  menu(message: string, ...args: unknown[]): void {
-    if (this.debugEnabled && this.debugSettings?.menuRender) {
-      console.log(`[MNU] ${message}`, ...args);
-    }
-  }
-
-  config(message: string, ...args: unknown[]): void {
-    if (this.debugEnabled && this.debugSettings?.configChange) {
-      console.log(`[CFG] ${message}`, ...args);
-    }
-  }
-
-  hotkey(message: string, ...args: unknown[]): void {
-    if (this.debugEnabled && this.debugSettings?.hotkeys) {
-      console.log(`[HK] ${message}`, ...args);
-    }
-  }
-
-  render(message: string, ...args: unknown[]): void {
-    if (this.debugEnabled && this.debugSettings?.renderEvents) {
-      console.log(`[RNDR] ${message}`, ...args);
-    }
-  }
-
-  abbrv(message: string, ...args: unknown[]): void {
-    if (this.debugEnabled && this.debugSettings?.abbrEvents) {
-      console.log(`[ABR] ${message}`, ...args);
-    }
+  abbrv(_message: string, ..._args: unknown[]): void {
+    // suppressed
   }
 
   /** Parses and categorizes log output from the backend core */
@@ -118,7 +73,8 @@ class WSLogger {
         /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?\s*(FATA|ERROR|WARN|INFO|DEBUG)\s+(.+)/
       );
       if (charmMatch) {
-        const [level, message] = charmMatch;
+        const level = charmMatch[2];
+        const message = charmMatch[3];
         const logMessage = `[COR] ${message}`;
         switch (level) {
           case "FATA":
@@ -169,6 +125,83 @@ class WSLogger {
         this.debug(`[Core] ${line}`);
       }
     }
+  }
+
+  getErrorLogFilePath(): string {
+    return this.errorLogFilePath;
+  }
+
+  async readErrorLog(): Promise<string> {
+    try {
+      return await fs.promises.readFile(this.errorLogFilePath, "utf8");
+    } catch {
+      return "";
+    }
+  }
+
+  async clearErrorLog(): Promise<void> {
+    try {
+      await fs.promises.writeFile(this.errorLogFilePath, "");
+    } catch {
+      // swallow
+    }
+  }
+
+  private ensureLogDirectory(): void {
+    try {
+      if (!fs.existsSync(this.logDirectoryPath)) {
+        fs.mkdirSync(this.logDirectoryPath, { recursive: true });
+      }
+      if (!fs.existsSync(this.errorLogFilePath)) {
+        fs.writeFileSync(this.errorLogFilePath, "");
+      }
+    } catch {
+      // swallow
+    }
+  }
+
+  private appendErrorLog(
+    level: "WARN" | "ERROR" | "FATAL",
+    message: string,
+    args: unknown[]
+  ): void {
+    try {
+      const base: TOML.JsonMap = {
+        time: new Date().toISOString(),
+        level,
+        message,
+      };
+      const ctx = this.formatArgs(args);
+      if (ctx !== undefined) {
+        base.context = ctx;
+      }
+      const toml = "[[log]]\n" + TOML.stringify(base);
+      fs.appendFile(this.errorLogFilePath, toml, () => {
+        // ignore callback errors
+      });
+    } catch {
+      // swallow
+    }
+  }
+
+  private formatArgs(args: unknown[]): string | undefined {
+    if (!args || args.length === 0) return undefined;
+    try {
+      return JSON.stringify(args, this.safeReplacer, 2);
+    } catch {
+      try {
+        return String(args);
+      } catch {
+        return undefined;
+      }
+    }
+  }
+
+  private safeReplacer(_key: string, value: unknown): unknown {
+    if (value instanceof Error) {
+      return { name: value.name, message: value.message, stack: value.stack };
+    }
+    return value;
   }
 }
 

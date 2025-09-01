@@ -276,7 +276,6 @@ export const DEFAULT_SETTINGS: WordServePluginSettings = {
 };
 `;
 fs.writeFileSync(path.resolve(__dirname, "../src/core/config.ts"), configOut);
-console.log("config.ts generated");
 
 const s = config.style;
 if (!s) {
