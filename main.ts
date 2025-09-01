@@ -2,9 +2,9 @@ import { Plugin, Notice } from "obsidian";
 import { Extension } from "@codemirror/state";
 import { logger } from "./src/utils/logger";
 import { hotkeyCmd } from "./src/commands/hotkeys";
-import { ghostTextState } from "./src/editor/ghost-text-extension";
+import { ghostTextState } from "./src/editor/ghost";
 import { WordServeClient } from "./src/core/client";
-import { WordServeSuggest } from "./src/ui/render";
+import { WordServeSuggest } from "./src/rendering/render";
 import { DEFAULT_SETTINGS } from "./src/core/config";
 import { WordServeSettingTab } from "src/settings/tab";
 import { WordServePluginSettings } from "./src/types";
@@ -22,9 +22,9 @@ export default class WordServePlugin extends Plugin {
   suggestor: WordServeSuggest;
   statusBarEl?: HTMLElement;
   editorExtensions: Extension[] = [];
-  private memoryCleanupInterval?: NodeJS.Timeout;
+  private memoryCleanupInterval: ReturnType<typeof setInterval> | undefined;
 
-  async onload() {
+  async onload(): Promise<void> {
     await this.loadSettings();
 
     this.registerEditorExtension(this.editorExtensions);
