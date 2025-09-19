@@ -1,15 +1,15 @@
-<h1 align="center">
+<div align="center">
   <a href="https://github.com/bastiangx/wordserve-obsidian">
  <picture>
-      <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/89vvzu.png">
-      <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/5gb4ye.png">
-      <img src="https://files.catbox.moe/5gb4ye.png"/>
+      <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/ee3abcf9-a9ce-43e9-b6b4-9c3f75c141fc">
+      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/20a6113a-c211-4142-bcab-5da2fb39671a">
+      <img width="450" src="https://github.com/user-attachments/assets/20a6113a-c211-4142-bcab-5da2fb39671a"/>
     </picture>
   </a>
-</h1>
+</div>
 
 <div align="center">
-Lightweight Autosuggestions and abbrevations for Obsidian!
+Lightweight Autosuggestions and abbrevations for [Obsidian](https://obsidian.md)!
 
 <br />
 <br />
@@ -22,14 +22,13 @@ Lightweight Autosuggestions and abbrevations for Obsidian!
 </div>
 
 <br />
-<a href="https://pkg.go.dev/github.com/bastiangx/wordserve"><img src="https://img.shields.io/badge/reference-black?style=for-the-badge&logo=go&logoSize=auto&labelColor=%23363A4F&color=%237dc4e4" alt="Go Reference"></a> <a href="https://goreportcard.com/report/github.com/bastiangx/wordserve"><img src="https://img.shields.io/badge/A%2B-black?style=for-the-badge&logoSize=auto&label=go%20report&labelColor=%23363A4F&color=%23a6da95" alt="Go Report Card"></a>
-<br />
-<a href="https://github.com/bastiangx/wordserve/releases/latest"><img src="https://img.shields.io/github/v/release/bastiangx/wordserve?sort=semver&display_name=tag&style=for-the-badge&labelColor=%23363A4F&color=%23f5a97f" alt="Latest Release"></a> <a href="https://github.com/bastiangx/wordserve/blob/main/LICENSE"><img src="https://img.shields.io/badge/MIT-black?style=for-the-badge&label=license&labelColor=%23363A4F&color=%23b7bdf8" alt="MIT License"></a>
+<a href="https://github.com/bastiangx/wordserve/blob/main/LICENSE"><img src="https://img.shields.io/badge/MIT-black?style=for-the-badge&label=license&labelColor=%23363A4F&color=%23b7bdf8" alt="MIT License"></a>
 <br />
 
-  <a href="https://github.com/bastiangx/wordserve-obsidian/issues/new?assignees=&labels=bug&template=BUG-REPORT.yml&title=%5BBug%5D%3A+">Report a Bug</a>
-  ·
-  <a href="https://github.com/bastiangx/wordserve-obsidian/issues/new?assignees=&labels=enhancement&template=FEATURE-REQUEST.yml&title=%5BFeature%5D%3A+">Request a Feature</a>
+<a href="https://github.com/bastiangx/wordserve-obsidian/issues/new?assignees=&labels=bug&template=BUG-REPORT.yml&title=%5BBug%5D%3A+">Report a Bug</a>
+·
+<a href="https://github.com/bastiangx/wordserve-obsidian/issues/new?assignees=&labels=enhancement&template=FEATURE-REQUEST.yml&title=%5BFeature%5D%3A+">Request a Feature</a>
+
 </div>
 
 #### What's it about?
@@ -67,55 +66,63 @@ Suggestions menu appear when typing any words + Expansions on text via abbreviat
 Easily find the relevant words and phrases as you type,
 suggestions are shown in a native menu
 
+<div align="center">
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/zrosek.gif">
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/ekrdxx.gif">
-      <img src="https://files.catbox.moe/ekrdxx.gif"/>
+      <img width="450" src="https://files.catbox.moe/ekrdxx.gif"/>
     </picture>
+  </div>
 <br />
 
 WordServe returns suggestions in rapid [IPC](https://en.wikipedia.org/wiki/Inter-process_communication) [MessagePacks](https://msgpack.org/index.html).
 Read more about this on [wordserv'e docs](https://github.com/bastiangx/wordserve/blob/main/docs/client.md)
 
+<div align="center">
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/sd3ikj.png">
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/h26n6q.png">
-      <img src="https://files.catbox.moe/h26n6q.png"/>
+      <img width="500" src="https://files.catbox.moe/h26n6q.png"/>
     </picture>
+  </div>
 <br />
-
 
 ### Abbrevation expansions
 
 Automatically expands abbreviations as you type,
 for example typing `btw` will expand to `by the way`
 
+<div align="center">
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/mlhfbn.gif">
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/5inerx.gif">
-      <img src="https://files.catbox.moe/5inerx.gif"/>
+      <img width="450" src="https://files.catbox.moe/5inerx.gif"/>
     </picture>
+  </div>
 <br />
 
 Easily add and manage your own abbreviations in the settings tab
 
+<div align="center">
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/d8t3d2.png">
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/6gvijw.png">
-      <img src="https://files.catbox.moe/6gvijw.png"/>
+      <img width="450" src="https://files.catbox.moe/6gvijw.png"/>
     </picture>
+  </div>
 <br />
-
 
 ### Digit selection
 
 Use digits on the keyboard to quickly insert a suggestion from the list!
 
+<div align="center">
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/5inerx.gif">
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/ex2oww.gif">
-      <img src="https://files.catbox.moe/ex2oww.gif"/>
+      <img img width="450 src="https://files.catbox.moe/ex2oww.gif"/>
     </picture>
+  </div>
 <br />
 
 ### Responsive
@@ -123,37 +130,43 @@ Use digits on the keyboard to quickly insert a suggestion from the list!
 Cross-platform and quick to use, built on top of a Go binary.
 Read more about how all this works in our [Go library's docs](https://github.com/bastiangx/wordserve/tree/main/docs)
 
+<div align="center">
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/ca82mt.png">
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/8emcdr.png">
-      <img src="https://files.catbox.moe/8emcdr.png"/>
+      <img width="500" src="https://files.catbox.moe/8emcdr.png"/>
     </picture>
+  </div>
 <br />
 <br />
 
 ### Colorschemes
 
+<div align="center">
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/1aeu53.png">
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/n07i2r.png">
-      <img src="https://files.catbox.moe/n07i2r.png"/>
+      <img width="500" src="https://files.catbox.moe/n07i2r.png"/>
     </picture>
+  </div>
 <br />
 Adapts to your Obsidian's current theme! with lots of accessbility options too (font / colors / size)
 
 ### Many many words
 
+
+<div align="center">
  <picture>
       <source media="(prefers-color-scheme: light)" srcset="https://files.catbox.moe/z463kh.png">
       <source media="(prefers-color-scheme: dark)" srcset="https://files.catbox.moe/w4cn0v.png">
-      <img src="https://files.catbox.moe/w4cn0v.png"/>
+      <img width="500" src="https://files.catbox.moe/w4cn0v.png"/>
     </picture>
-
+</div>
 <br />
 
 Start with a simple `words.txt` file containing 65,000+ entries.
 
-WordServe chunks the dictionary into binary trie files and loads only what's needed, 
+WordServe chunks the dictionary into binary trie files and loads only what's needed,
 managing memory based on usage patterns.
 
 ---
@@ -213,7 +226,7 @@ See [LICENSE](LICENSE)
 ## Acknowledgements
 
 - Inspired _heavily_ by [fluent-typer extension](https://github.com/bartekplus/FluentTyper) made by Bartosz Tomczyk.
-  - <span style="color: #908caa;">  Its a great extension to use on browsers, but I wanted something that can be used basically in any electron/local webapps with plugin clients, but also make it wayyy faster and more efficient since the depeendencies used there are way too bloated (C++ ...) and had too many bindings for my liking, and also more imporatantly, make this a good practice for me to learn how radix tries work for prefixes.</span>
+  - <span style="color: #908caa;"> Its a great extension to use on browsers, but I wanted something that can be used basically in any electron/local webapps with plugin clients, but also make it wayyy faster and more efficient since the depeendencies used there are way too bloated (C++ ...) and had too many bindings for my liking, and also more imporatantly, make this a good practice for me to learn how radix tries work for prefixes.</span>
 
 - The _Beautiful_ [Rosepine theme](https://rosepinetheme.com/) used for graphics and screenshots throughout the readme.
 - The Incredible mono font, Berkeley Mono by [U.S. Graphics](https://usgraphics.com/products/berkeley-mono) used in screenshots, graphics, gifs and more.
