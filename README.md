@@ -38,7 +38,7 @@ Lightweight Autosuggestions and abbrevations for <a href="https://obsidian.md">O
 <tr>
 <td>
 
-WordServe is a minimalistic and high performance **Autocompletion plugin** written in Go.
+WordServe is a minimalistic and high performance **Autocompletion plugin**.
 It suggests top ranking words when typing and exapnsions on abbreviations! simple.
 You can insert them by pressing `Tab` or `Enter` (or pressing the digit keys for vim users ;) )
 
@@ -198,11 +198,11 @@ place cloned folder inside Obsidina's plugins directory, Obsidian should load it
 > Make sure the `data/` directory exists and has the `words.txt` file in it.
 
 > [!important]
-> This repo is powered by WordServe's own [Go library](https://github.com/bastiangx/wordserve)! check it out if you want to see how the prefixes are actually processed
+> Core is powered by WordServe's own [Go library](https://github.com/bastiangx/wordserve)! check it out if you want to see how the prefixes are actually processed
 
 ### DISCLAIMERS
 
-1. The core components **ARE DOWNLOADED FROM GITHUB** via the release versions noted, if plugin version is for example `v0.1.2`, it will only download the `v0.1.2` binaries from [WordServe' repo](https://github.com/bastiangx/wordserve) -- (no mechanisms of auto updating)
+1. Core components **ARE DOWNLOADED FROM GITHUB** via the release versions noted, if plugin version is for example `v0.1.2`, it will only download the `v0.1.2` binaries from [WordServe' repo](https://github.com/bastiangx/wordserve) -- (no mechanisms of auto updating)
    - These binaries include the `wordserve` Go executable, a `words.txt` file and the dictionary files needed for this to work.
    - all fetching impls are done in [downloader.ts file](./src/core/downloader.ts)
    - If you have any issues with the fetching, you can manually get them from the [releases page](https://github.com/bastiangx/wordserve/releases/latest)
@@ -224,10 +224,7 @@ Feel free to edit and distribute as you like.
 
 See [LICENSE](LICENSE)
 
-## Acknowledgements
-
-- Inspired _heavily_ by [fluent-typer extension](https://github.com/bartekplus/FluentTyper) made by Bartosz Tomczyk.
-  - <span style="color: #908caa;"> Its a great extension to use on browsers, but I wanted something that can be used basically in any electron/local webapps with plugin clients, but also make it wayyy faster and more efficient since the depeendencies used there are way too bloated (C++ ...) and had too many bindings for my liking, and also more imporatantly, make this a good practice for me to learn how radix tries work for prefixes.</span>
+### Acknowledgements
 
 - The _Beautiful_ [Rosepine theme](https://rosepinetheme.com/) used for graphics and screenshots throughout the readme.
 - The Incredible mono font, Berkeley Mono by [U.S. Graphics](https://usgraphics.com/products/berkeley-mono) used in screenshots, graphics, gifs and more.
