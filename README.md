@@ -9,7 +9,8 @@
 </div>
 
 <div align="center">
-Lightweight Autosuggestions and abbrevations for [Obsidian](https://obsidian.md)!
+Lightweight Autosuggestions and abbrevations for <a href="https://obsidian.md">Obsidian!</a>
+</div>
 
 <br />
 <br />
