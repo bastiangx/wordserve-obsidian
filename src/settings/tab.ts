@@ -315,15 +315,15 @@ export class WordServeSettingTab extends PluginSettingTab {
       .setName("Font weight")
       .setDesc("Font weight for suggestion text")
       .addDropdown((dropdown) => {
-        dropdown.addOption("thin", "Thin (100)");
-        dropdown.addOption("extralight", "Extra Light (200)");
-        dropdown.addOption("light", "Light (300)");
-        dropdown.addOption("normal", "Normal (400)");
-        dropdown.addOption("medium", "Medium (500)");
-        dropdown.addOption("semibold", "Semi Bold (600)");
-        dropdown.addOption("bold", "Bold (700)");
-        dropdown.addOption("extrabold", "Extra Bold (800)");
-        dropdown.addOption("black", "Black (900)");
+        dropdown.addOption("thin", "100");
+        dropdown.addOption("extralight", "200");
+        dropdown.addOption("light", "300");
+        dropdown.addOption("normal", "400");
+        dropdown.addOption("medium", "500");
+        dropdown.addOption("semibold", "600");
+        dropdown.addOption("bold", "700");
+        dropdown.addOption("extrabold", "800");
+        dropdown.addOption("black", "900");
         dropdown.setValue(this.plugin.settings.fontWeight);
         dropdown.onChange(
           async (
@@ -618,24 +618,8 @@ export class WordServeSettingTab extends PluginSettingTab {
         await navigator.clipboard.writeText(text);
         return true;
       }
-    } catch {
-      // fallthrough to legacy path
-    }
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-1000px";
-      textarea.style.top = "-1000px";
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      const ok = document.execCommand("copy");
-      document.body.removeChild(textarea);
-      return ok;
-    } catch {
-      return false;
-    }
+    } catch {}
+    return false;
   }
 
   private async addDictionarySizeSetting(
